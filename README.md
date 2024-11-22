@@ -1,6 +1,5 @@
-#  ECS 152A Programming Assignment 3 (Fall 2023)
+#  ECS 152A Programming Assignment 3 (Fall 2024)
 
-## Note: This README has changed. Your sender doesn't have to send `-1` to indicate that it has finished sending data.
 Check the `How to use` section of the README for instructions on indicating the end of sending data.
 
 ## Congestion Control
