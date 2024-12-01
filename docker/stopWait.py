@@ -36,14 +36,23 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
                 # Wait for ack
                 # set timeout time
-                udpSocket.settimeout(2)
-                ack, _ = udpSocket.recvfrom(PACKET_SIZE)
+                udpSocket.settimeout(5)
 
-                # check for ack
+
+                
+                # this is ack return from receiver
+                # check for ack to comfirm if correctly received
+                ack, _ = udpSocket.recvfrom(PACKET_SIZE)
+                
+                # comfirm ack format
+                print(f"Received raw ACK: {ack}")
+                
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
                 if ack_id == seq_id + 1:
                     print(f"Received ACK for packet {seq_id}")
                     break
+
+
             except socket.timeout:
                 totalRetransmission += 1
                 print(f"Timeout for packet {seq_id}, resending...")
