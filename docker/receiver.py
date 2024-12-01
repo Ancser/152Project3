@@ -20,7 +20,7 @@ def create_acknowledgement(seq_id, message):
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
     # start calculator
-    startTime = time()
+    startTime = time.time()
     totalPackageReceived = 0
     totalByteReceived = 0
 

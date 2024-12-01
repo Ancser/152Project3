@@ -16,7 +16,7 @@ packets = [data[i:i+MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
     # start calculator
-    startTime = time()
+    startTime = time.time()
     totalRetransmission = 0
 
 
