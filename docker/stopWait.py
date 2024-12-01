@@ -23,19 +23,21 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
     for seq_id, packet in enumerate(packets):
         # create package
-        seq_id_bytes = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True)
-        udpPacket = seq_id_bytes + packet
+        udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
 
         # wait ack
         while True:
             try:
+                # Wait for ack
+                # set timeout time
+                udpSocket.settimeout(2)
+
+
                 # send package
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
                 print(f"Sent packet {seq_id}")
 
-                # Wait for ack
-                # set timeout time
-                udpSocket.settimeout(2)
+                
                 
                 # this is ack return from receiver
                 # check for ack to comfirm if correctly received
