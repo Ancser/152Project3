@@ -19,21 +19,26 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
     for seq_id, packet in enumerate(packets):
         # create package
         seq_id_bytes = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True)
-        udp_socket.sendto(seq_id_bytes + packet, SERVER_ADDRESS)
-        print(f"Sent packet {seq_id}")
+        udp_packet = seq_id_bytes + packet
 
         # wait ack
         while True:
             try:
-                udp_socket.settimeout(2)  # timeout
+                # 发送数据包
+                udp_socket.sendto(udp_packet, SERVER_ADDRESS)
+                print(f"Sent packet {seq_id}")
+
+                # 等待 ACK
+                udp_socket.settimeout(2)  # 设置超时时间
                 ack, _ = udp_socket.recvfrom(PACKET_SIZE)
+
+                # 检查 ACK
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-                if ack_id == seq_id + len(packet):  # ACK
+                if ack_id == seq_id + 1:
                     print(f"Received ACK for packet {seq_id}")
                     break
             except socket.timeout:
                 print(f"Timeout for packet {seq_id}, resending...")
-                udp_socket.sendto(seq_id_bytes + packet, SERVER_ADDRESS)
 
     # send end signal
     fin_packet = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
