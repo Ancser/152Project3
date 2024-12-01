@@ -16,7 +16,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
     # bind to 0.0.0.0 so external 
     udp_socket.bind(("0.0.0.0", 5001))
 
-    print("Receiver running")
+    print("Receiver running???")
     # start receiving packets
     while True:
         timeouts = 0
