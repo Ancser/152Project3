@@ -42,9 +42,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 ack, _ = udpSocket.recvfrom(PACKET_SIZE)
                 
                 # comfirm ack format
-                print(f"Received raw ACK: {ack}")
-                
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+                print(f"Received ACK for sequence ID: {ack_id}")
+
                 if ack_id == seq_id + 1:
                     print(f"Received ACK for packet {seq_id}")
                     break
