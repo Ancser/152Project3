@@ -1,6 +1,5 @@
 import random
 import socket
-import time
 
 PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
@@ -8,29 +7,17 @@ MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 EXPECTED_SEQ_ID = 0
 RECEIVED_DATA = {}
 
-# Base on original receiver.py
-# Modify to receive different protocol
-
 def create_acknowledgement(seq_id, message):
     return int.to_bytes(seq_id, SEQ_ID_SIZE, signed=True, byteorder='big') + message.encode()
 
-
-
 # create a udp socket
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
-
-    # start calculator
-    startTime = time.time()
-    totalPackageReceived = 0
-    totalByteReceived = 0
-
     # bind the socket to a OS port
     # bind to 0.0.0.0 so external 
     udp_socket.bind(("0.0.0.0", 5001))
-    print("Customized Receiver running")
 
-
-    # start receiving packets Original
+    print("Receiver running")
+    # start receiving packets
     while True:
         timeouts = 0
         try:
@@ -40,9 +27,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
             # get the message id
             seq_id, message = packet[:SEQ_ID_SIZE], packet[SEQ_ID_SIZE:]
             
-            # check if finack message 
+            # check if finack message
             if message == b'==FINACK==':
-                print("Receiverd finish ACK, stop running")
                 break
             
             # if the message id is -1, we have received all the packets
@@ -53,10 +39,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
             
             # check if sequence id is same as expected and move forward
             if seq_id <= EXPECTED_SEQ_ID and len(RECEIVED_DATA[seq_id]) > 0:
-                # record receive
-                totalPackageReceived += 1
-                totalByteReceived += len(message)
-
                 while EXPECTED_SEQ_ID in RECEIVED_DATA:
                     EXPECTED_SEQ_ID += len(RECEIVED_DATA[seq_id])
             
@@ -75,21 +57,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 fin = create_acknowledgement(ack_id + 3, 'fin')
                 udp_socket.sendto(ack, client)
                 udp_socket.sendto(fin, client)
-
         except socket.timeout:
             timeouts += 1
 
-
-# wriitng all data into new mp3
 with open('/hdd/file2.mp3', 'wb') as f:
     for sid in sorted(RECEIVED_DATA.keys()):
         f.write(RECEIVED_DATA[sid])
-
-# Staticstic Output
-endTime = time.time()
-useTime = endTime - startTime
-
-print("\n--- Reception Statistics ---")
-print(f"Total packets received: {totalPackageReceived}")
-print(f"Total bytes received: {totalByteReceived}")
-print(f"Time taken: {useTime:.2f} seconds")

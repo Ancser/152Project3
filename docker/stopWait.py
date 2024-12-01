@@ -14,13 +14,12 @@ packets = [data[i:i+MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
 
 # make udp socklet
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
+    SERVER_ADDRESS = ('127.0.0.1', 5001)  # receiver address
 
-    # start calculator
+    # start calculator as socket created
     startTime = time.time()
     totalRetransmission = 0
-
-
-    SERVER_ADDRESS = ('127.0.0.1', 5001)  # receiver address
+    
 
     for seq_id, packet in enumerate(packets):
         # create package
@@ -36,9 +35,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
                 # Wait for ack
                 # set timeout time
-                udpSocket.settimeout(5)
-
-
+                udpSocket.settimeout(2)
                 
                 # this is ack return from receiver
                 # check for ack to comfirm if correctly received
