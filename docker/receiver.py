@@ -1,5 +1,6 @@
 import random
 import socket
+import time
 
 PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
@@ -13,8 +14,16 @@ RECEIVED_DATA = {}
 def create_acknowledgement(seq_id, message):
     return int.to_bytes(seq_id, SEQ_ID_SIZE, signed=True, byteorder='big') + message.encode()
 
+
+
 # create a udp socket
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+
+    # start calculator
+    startTime = time()
+    totalPackageReceived = 0
+    totalByteReceived = 0
+
     # bind the socket to a OS port
     # bind to 0.0.0.0 so external 
     udp_socket.bind(("0.0.0.0", 5001))
@@ -22,71 +31,65 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
 
     # start receiving packets Original
-    # while True:
-    #     timeouts = 0
-    #     try:
-    #         # receive the packet
-    #         packet, client = udp_socket.recvfrom(PACKET_SIZE)
-            
-    #         # get the message id
-    #         seq_id, message = packet[:SEQ_ID_SIZE], packet[SEQ_ID_SIZE:]
-            
-    #         # check if finack message XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    #         if message == b'==FINACK==':
-    #             print("Receiverd finish ACK, stop running")
-    #             break
-            
-    #         # if the message id is -1, we have received all the packets
-    #         seq_id = int.from_bytes(seq_id, signed=True, byteorder='big')
-            
-    #         # keep track of received sequences
-    #         RECEIVED_DATA[seq_id] = message
-            
-    #         # check if sequence id is same as expected and move forward
-    #         if seq_id <= EXPECTED_SEQ_ID and len(RECEIVED_DATA[seq_id]) > 0:
-    #             while EXPECTED_SEQ_ID in RECEIVED_DATA:
-    #                 EXPECTED_SEQ_ID += len(RECEIVED_DATA[seq_id])
-            
-    #         # create ack id
-    #         ack_id = EXPECTED_SEQ_ID
-            
-    #         # create the acknowledgement
-    #         acknowledgement = create_acknowledgement(ack_id, 'ack')
-
-    #         # send the acknowledgement
-    #         udp_socket.sendto(acknowledgement, client)
-            
-    #         # check if all data received (empty message)
-    #         if len(message) == 0 and ack_id == seq_id:
-    #             ack = create_acknowledgement(ack_id, 'ack')
-    #             fin = create_acknowledgement(ack_id + 3, 'fin')
-    #             udp_socket.sendto(ack, client)
-    #             udp_socket.sendto(fin, client)
-    #     except socket.timeout:
-    #         timeouts += 1
-
     while True:
-        packet, client = udp_socket.recvfrom(PACKET_SIZE)
-        seq_id = int.from_bytes(packet[:SEQ_ID_SIZE], byteorder='big', signed=True)
-        message = packet[SEQ_ID_SIZE:]
-        
-        # check end signal
-        if message == b'==FINACK==':
-            print("Received FINACK, stopping receiver.")
-            break
-
-        # compare ack and get if right
-        if seq_id == EXPECTED_SEQ_ID:
+        timeouts = 0
+        try:
+            # receive the packet
+            packet, client = udp_socket.recvfrom(PACKET_SIZE)
+            
+            # get the message id
+            seq_id, message = packet[:SEQ_ID_SIZE], packet[SEQ_ID_SIZE:]
+            
+            # check if finack message 
+            if message == b'==FINACK==':
+                print("Receiverd finish ACK, stop running")
+                break
+            
+            # if the message id is -1, we have received all the packets
+            seq_id = int.from_bytes(seq_id, signed=True, byteorder='big')
+            
+            # keep track of received sequences
             RECEIVED_DATA[seq_id] = message
-            print(f"Received packet {seq_id}")
-            EXPECTED_SEQ_ID += 1
+            
+            # check if sequence id is same as expected and move forward
+            if seq_id <= EXPECTED_SEQ_ID and len(RECEIVED_DATA[seq_id]) > 0:
+                # record receive
+                totalPackageReceived += 1
+                totalByteReceived += len(message)
 
-        # Return ack
-        ack = int.to_bytes(EXPECTED_SEQ_ID, SEQ_ID_SIZE, byteorder='big', signed=True)
-        udp_socket.sendto(ack, client)
+                while EXPECTED_SEQ_ID in RECEIVED_DATA:
+                    EXPECTED_SEQ_ID += len(RECEIVED_DATA[seq_id])
+            
+            # create ack id
+            ack_id = EXPECTED_SEQ_ID
+            
+            # create the acknowledgement
+            acknowledgement = create_acknowledgement(ack_id, 'ack')
+
+            # send the acknowledgement
+            udp_socket.sendto(acknowledgement, client)
+            
+            # check if all data received (empty message)
+            if len(message) == 0 and ack_id == seq_id:
+                ack = create_acknowledgement(ack_id, 'ack')
+                fin = create_acknowledgement(ack_id + 3, 'fin')
+                udp_socket.sendto(ack, client)
+                udp_socket.sendto(fin, client)
+
+        except socket.timeout:
+            timeouts += 1
 
 
 # wriitng all data into new mp3
 with open('/hdd/file2.mp3', 'wb') as f:
     for sid in sorted(RECEIVED_DATA.keys()):
         f.write(RECEIVED_DATA[sid])
+
+# Staticstic Output
+endTime = time.time()
+useTime = endTime - startTime
+
+print("\n--- Reception Statistics ---")
+print(f"Total packets received: {totalPackageReceived}")
+print(f"Total bytes received: {totalByteReceived}")
+print(f"Time taken: {useTime:.2f} seconds")
