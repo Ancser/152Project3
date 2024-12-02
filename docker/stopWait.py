@@ -21,16 +21,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     startTime = time.time()
     totalRetransmission = 0
 
-    
+    seq_id = 0
 
-    for seq_id, packet in enumerate(packets):
-        # create package
-        udpPacket = int.to_bytes(seq_id+len(packet), SEQ_ID_SIZE, byteorder='big', signed=True) + packet
-
-
+    for packet in packets:
+        
         # wait ack
         while True:
             try:
+                # create package
+                udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+
                 # Wait for ack
                 # set timeout time
                 udpSocket.settimeout(2)
@@ -64,6 +64,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             except socket.timeout:
                 totalRetransmission += 1
                 print(f"[TIMEOUT] No ACK received for Packet {seq_id}, retransmitting...")
+
 
     # send end signal
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
