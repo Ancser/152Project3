@@ -11,6 +11,7 @@ with open('file.mp3', 'rb') as f:
 
 # break data
 packets = [data[i:i+MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
+print(f"Total packets to send: {len(packets)}")
 
 # make udp socklet
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
@@ -19,11 +20,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # start calculator as socket created
     startTime = time.time()
     totalRetransmission = 0
+
     
 
     for seq_id, packet in enumerate(packets):
         # create package
         udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+
 
         # wait ack
         while True:
@@ -35,7 +38,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
                 # send package
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                print(f"Sent packet {seq_id}")
+                print(f"[SENT] Packet {seq_id} (size: {len(packet)})")
 
                 
                 
@@ -45,21 +48,21 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 
                 # comfirm ack format
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-                print(f"Received ACK for sequence ID: {ack_id}")
+                print(f"[RECEIVED] ACK for Packet {seq_id} - Parsed ACK_ID: {ack_id}")
 
                 if ack_id == seq_id + 1:
-                    print(f"Received ACK for packet {seq_id}")
+                    print(f"[CONFIRMED] ACK matches expected ID for Packet {seq_id}")
                     break
 
 
             except socket.timeout:
                 totalRetransmission += 1
-                print(f"Timeout for packet {seq_id}, resending...")
+                print(f"[TIMEOUT] No ACK received for Packet {seq_id}, retransmitting...")
 
     # send end signal
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print("Sent FINACK")
+    print(f"[FIN] Sent FINACK signal")
 
 # Staticstic Output
 endTime = time.time()
