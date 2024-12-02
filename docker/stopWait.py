@@ -28,48 +28,41 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         # wait ack
         while True:
             try:
-                # create package
+                # create and send the package ====================================
                 udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+                udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+                print(f"Sent packet ID [{seq_id}] ({len(packet)} byte) >>>")
 
-                # Wait for ack
-                # set timeout time
+                # wait for response =============================================
+                # setting timeout
                 udpSocket.settimeout(2)
 
-
-                # send package
-                udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                print(f"[SENT] Packet {seq_id} (size: {len(packet)})")
-
-                
-                
-                # this is ack return from receiver
                 # check for ack to comfirm if correctly received
                 ack, _ = udpSocket.recvfrom(PACKET_SIZE)
-                print(f"[DEBUG] Raw ACK: {ack}")
                 
                 # comfirm ack format
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-                print(f"[RECEIVED] ACK for Packet {seq_id} - Parsed ACK_ID: {ack_id}")
+                print(f"Receive ACK ID: {ack_id} for pacakge ID {seq_id} <<<")
                 
-
+                # seq_id is current, must match the expected return ack with higher id
                 if ack_id == seq_id + len(packet):
                     seq_id += len(packet)
-                    print(f"[CONFIRMED] ACK matches expected ID for Packet {seq_id}")
+                    print(f"Success! ACK ID mactched with {seq_id} +++")
                     break
                 else:
-                    print(f"[DEBUG] Received unexpected ACK with id={ack_id}, expected={seq_id}")
+                    print(f"Warning! ACK ID not matched {ack_id}, expected{seq_id} xxx")
                     continue
 
 
             except socket.timeout:
                 totalRetransmission += 1
-                print(f"[TIMEOUT] No ACK received for Packet {seq_id}, retransmitting...")
+                print(f"Timeout package ID [{seq_id}], Retransmission...")
 
 
     # send end signal
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print(f"[FIN] Sent FINACK signal")
+    print(f"Sent FINACK signal")
 
 # Staticstic Output
 endTime = time.time()
