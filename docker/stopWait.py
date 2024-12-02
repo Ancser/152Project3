@@ -52,7 +52,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 print(f"[RECEIVED] ACK for Packet {seq_id} - Parsed ACK_ID: {ack_id}")
                 
 
-                if ack_id == seq_id:
+                if ack_id == seq_id + len(packet):
+                    seq_id += len(packet)
                     print(f"[CONFIRMED] ACK matches expected ID for Packet {seq_id}")
                     break
                 else:
