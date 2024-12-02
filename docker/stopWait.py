@@ -20,6 +20,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # start calculator as socket created
     startTime = time.time()
     totalRetransmission = 0
+    delays = []
+    totalJitter = 0
+    lastDelay = None  
 
     seq_id = 0
 
@@ -29,6 +32,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         while True:
             try:
                 # create and send the package ====================================
+                sendTime = time.time()
                 udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
                 print(f"Sent packet ID [{seq_id}] ({len(packet)} byte) >>>")
@@ -44,6 +48,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
                 print(f"Receive ACK ID: {ack_id} for pacakge ID {seq_id} <<<")
                 
+                # Delay
+                recvTime = time.time()
+                delay = recvTime - sendTime
+                delays.append(delay)
+
+                # Jitter
+                if lastDelay is not None:
+                    totalJitter += abs(delay - lastDelay)
+                lastDelay = delay
+
                 # seq_id is current, must match the expected return ack with higher id
                 if ack_id == seq_id + len(packet):
                     seq_id += len(packet)
@@ -62,13 +76,25 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # send end signal
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print(f"Sent FINACK signal")
+    print(f"Sent FINACK signal XXX")
 
-# Staticstic Output
+# Staticstic Output ===================================================
+# all time
 endTime = time.time()
 useTime = endTime - startTime
+
+# throuput
+totalData = len(packets) * MESSAGE_SIZE
+throughput = totalData / useTime
+
+# delay and jitter
+avgDelay = sum(delays) / len(delays)
+avgJitter = totalJitter / (len(delays) - 1) if len(delays) > 1 else 0
 
 print("\n====== Reception Statistics ======")
 print(f"Total packets sent: {len(packets)}")
 print(f"Total retransmission: {totalRetransmission}")
 print(f"Time taken: {useTime:.2f} seconds")
+print(f"Throughput: {throughput:.2f} bytes/second")
+print(f"Average packet delay: {avgDelay:.7f} seconds")
+print(f"Average jitter: {avgJitter:.7f} seconds")

@@ -43,7 +43,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                     EXPECTED_SEQ_ID += len(RECEIVED_DATA[seq_id])
 
             # FOR TESTING OUTPUT PURPOSE!!! =====================================
-            print(f"Received packet ID [{seq_id}] ({len(message)} byte)")
+            print(f"Received packet ID [{seq_id}] ({len(message)} byte) <<<")
             
             
             # create ack id
@@ -56,7 +56,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
             udp_socket.sendto(acknowledgement, client)
 
             # FOR TESTING OUTPUT PURPOSE!!! =====================================
-            print(f"Returning ACK ID [{ack_id}]")
+            print(f"Returning ACK ID [{ack_id}] >>>")
 
             # check if all data received (empty message)
             if len(message) == 0 and ack_id == seq_id:

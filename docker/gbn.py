@@ -1,78 +1,82 @@
 import socket
 import time
-from threading import Timer
 
-PACKET_SIZE = 1024  # Total packet size
-SEQ_ID_SIZE = 4  # Sequence ID size
-MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE  # Size of the message part
-WINDOW_SIZE = 4  # Size of the sliding window
+PACKET_SIZE = 1024
+SEQ_ID_SIZE = 4
+MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
-# Read the file to send
+# read file to send
 with open('file.mp3', 'rb') as f:
     data = f.read()
 
-# Split the file into packets
-packets = [data[i:i + MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
+# break data
+packets = [data[i:i+MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
+print(f"Total packets to send: {len(packets)}")
 
-# Create a global retransmission counter
-totalRetransmissions = 0
-
-# Create UDP socket
+# make udp socklet
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
-    SERVER_ADDRESS = ('127.0.0.1', 5001)  # Address of the receiver
-    base = 0  # Initial sequence number of the window
-    nextSeq = 0  # Next sequence number to send
+    SERVER_ADDRESS = ('127.0.0.1', 5001)  # receiver address
 
-    # Define timeout function
-    def timeout():
-        global totalRetransmissions
-        print(f"[TIMEOUT] Retransmitting window starting from {base}")
-        for seq_id in range(base, min(base + WINDOW_SIZE, len(packets))):
-            udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[seq_id]
+    # start calculator as socket created
+    startTime = time.time()
+    totalRetransmission = 0
+
+
+    # GBN window setting ===============================================
+    windowSize = 5 
+    baseIndex = 0
+    next_seq_id = 0
+    unacked_packets = {}
+
+
+    while baseIndex < len(packets):
+
+        # Send packets within the window
+        while next_seq_id < baseIndex + windowSize and next_seq_id < len(packets):
+            packet = packets[next_seq_id]
+            udpPacket = int.to_bytes(next_seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            print(f"[RETRANSMIT] Packet {seq_id}")
-            totalRetransmissions += 1  # Increment retransmission counter
-
-    timer = None  # Timer initialization
-
-    while base < len(packets):
-        # Send packets in the window
-        while nextSeq < base + WINDOW_SIZE and nextSeq < len(packets):
-            udpPacket = int.to_bytes(nextSeq, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[nextSeq]
-            udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            print(f"[SENT] Packet {nextSeq}")
-            if base == nextSeq:
-                if timer:
-                    timer.cancel()  # Cancel previous timer
-                timer = Timer(2.0, timeout)  # Start a 2-second timer
-                timer.start()
-            nextSeq += 1
+            print(f"Sent packet ID [{next_seq_id}] ({len(packet)} byte) >>>")
+            unacked_packets[next_seq_id] = packet  # Track the packet
+            next_seq_id += 1
+        
 
         try:
             # Wait for ACK
             udpSocket.settimeout(2)
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
             ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-            print(f"[RECEIVED] ACK for Packet {ack_id}")
+            print(f"Receive ACK ID: {ack_id} <<<")
 
-            if ack_id >= base:
-                base = ack_id + 1  # Slide the window
-                if timer:
-                    timer.cancel()  # Cancel timer after ACK
+            if ack_id > baseIndex:
+                # Slide the window forward
+                for seq_id in range(baseIndex, ack_id):
+                    if seq_id in unacked_packets:
+                        del unacked_packets[seq_id]
+                baseIndex = ack_id
+                print(f"Window moved! new base index [{baseIndex}] +++")
+
         except socket.timeout:
-            print("[TIMEOUT] No ACK received, retransmitting...")
-            timeout()
+            # Retransmit all packets in the current window
+            totalRetransmission += 1
+            print(f"Timeout! Retransmitting window starting from baseIndex {baseIndex}...")
+            for seq_id in range(baseIndex, next_seq_id):
+                if seq_id in unacked_packets:
+                    packet = unacked_packets[seq_id]
+                    udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+                    udpSocket.sendto(udpPacket, SERVER_ADDRESS)
 
-    # Send finish signal
+
+    # send end signal
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print("[FIN] Sent FINACK signal")
-    if timer:
-        timer.cancel()
+    print(f"Sent FINACK signal XXX")
 
-    # Print statistics
-    print("\n====== Transmission Statistics ======")
-    print(f"Total packets sent: {len(packets)}")
-    print(f"Total retransmissions: {totalRetransmissions}")
+# Staticstic Output
+endTime = time.time()
+useTime = endTime - startTime
 
-
+print("\n====== Reception Statistics ======")
+print(f"Total packets sent: {len(packets)}")
+print(f"Total retransmission: {totalRetransmission}")
+print(f"Time taken: {useTime:.2f} seconds")
