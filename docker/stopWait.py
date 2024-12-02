@@ -45,10 +45,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 # this is ack return from receiver
                 # check for ack to comfirm if correctly received
                 ack, _ = udpSocket.recvfrom(PACKET_SIZE)
+                print(f"[DEBUG] Raw ACK: {ack}")
                 
                 # comfirm ack format
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
                 print(f"[RECEIVED] ACK for Packet {seq_id} - Parsed ACK_ID: {ack_id}")
+                
 
                 if ack_id == seq_id + 1:
                     print(f"[CONFIRMED] ACK matches expected ID for Packet {seq_id}")
