@@ -49,12 +49,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 
                 # comfirm ack format
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+                ack_id += len(packet)
                 print(f"[RECEIVED] ACK for Packet {seq_id} - Parsed ACK_ID: {ack_id}")
                 
 
                 if ack_id == seq_id:
                     print(f"[CONFIRMED] ACK matches expected ID for Packet {seq_id}")
                     break
+                else:
+                    print(f"[DEBUG] Received unexpected ACK with id={ack_id}, expected={seq_id}")
+                    continue
 
 
             except socket.timeout:
