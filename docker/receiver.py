@@ -41,7 +41,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
             if seq_id <= EXPECTED_SEQ_ID and len(RECEIVED_DATA[seq_id]) > 0:
                 while EXPECTED_SEQ_ID in RECEIVED_DATA:
                     EXPECTED_SEQ_ID += len(RECEIVED_DATA[seq_id])
-            
+
+            print(f"[RECEIVER] Received Packet: seq_id={seq_id}, size={len(message)}")
             # create ack id
             ack_id = EXPECTED_SEQ_ID
             
@@ -50,6 +51,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
             # send the acknowledgement
             udp_socket.sendto(acknowledgement, client)
+            print(f"[RECEIVER] Sending ACK: ack_id={ack_id}")
             
             # check if all data received (empty message)
             if len(message) == 0 and ack_id == seq_id:
