@@ -25,7 +25,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
     for seq_id, packet in enumerate(packets):
         # create package
-        udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+        udpPacket = int.to_bytes(seq_id+len(packet), SEQ_ID_SIZE, byteorder='big', signed=True) + packet
 
 
         # wait ack
@@ -49,7 +49,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 
                 # comfirm ack format
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-                ack_id += len(packet)
                 print(f"[RECEIVED] ACK for Packet {seq_id} - Parsed ACK_ID: {ack_id}")
                 
 
