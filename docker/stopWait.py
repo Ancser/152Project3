@@ -58,6 +58,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     totalJitter += abs(delay - lastDelay)
                 lastDelay = delay
 
+                # Send next data of currect.
                 # seq_id is current, must match the expected return ack with higher id
                 if ack_id == seq_id + len(packet):
                     seq_id += len(packet)
@@ -91,10 +92,19 @@ throughput = totalData / useTime
 avgDelay = sum(delays) / len(delays)
 avgJitter = totalJitter / (len(delays) - 1) if len(delays) > 1 else 0
 
-print("\n====== Reception Statistics ======")
+# final metric
+metric = (
+    0.2 * (throughput / 2000) +
+    0.1 * (1 / avgJitter if avgJitter > 0 else 0) +
+    0.8 * (1 / avgDelay if avgDelay > 0 else 0)
+)
+
+print("\n=========== METRIC ==================")
 print(f"Total packets sent: {len(packets)}")
 print(f"Total retransmission: {totalRetransmission}")
+
 print(f"Time taken: {useTime:.2f} seconds")
 print(f"Throughput: {throughput:.2f} bytes/second")
-print(f"Average packet delay: {avgDelay:.7f} seconds")
-print(f"Average jitter: {avgJitter:.7f} seconds")
+print(f"Average packet delay: {avgDelay:.2f} seconds")
+print(f"Average jitter: {avgJitter:.2f} seconds")
+print(f"Performance Metric: {metric:.2f}")
