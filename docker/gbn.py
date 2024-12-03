@@ -52,7 +52,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         
         # Wait for resonse <<<<<
         try:
-            udpSocket.settimeout(2)
+            # time out setting this might make huge change,try it!!!
+            udpSocket.settimeout(0.5)
 
             # getting ACK package, getting ACK ID
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
@@ -89,13 +90,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             # Retransmit all packets in the current window
             
             print(f"Timeout! Retransmitting window from [{baseIndex}] >>>")
+            totalRetransmission += 1
             for SeqID in range(baseIndex, nextSeqID):
                 reSeqID = SeqID * MESSAGE_SIZE
+                print(f"Resending {list(waitAckPacket.keys())}")
                 if SeqID in waitAckPacket:
+                    # preparing resend package
                     packet, sendTime = waitAckPacket[reSeqID]
+
+                    # resend process
                     udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                    totalRetransmission += 1
+                    
 
 
     # send end signal
