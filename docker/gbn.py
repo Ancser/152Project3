@@ -38,15 +38,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         # must check window index maximum greater than the next s
         while nextSeqID < baseIndex + windowSize and nextSeqID < len(packets):
             packet = packets[nextSeqID]
-            udpPacket = int.to_bytes(nextSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+            SeqID = nextSeqID * MESSAGE_SIZE
+            udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            print(f"Sent packet ID [{nextSeqID}] ({len(packet)} byte) >>>")
+            print(f"Sent packet ID [{SeqID}] ({len(packet)} byte) >>>")
 
             sendTime = time.time()
 
             #  the list of the package with no ack response yet
             # for now is all, record id, package info and time
-            waitAckPacket[nextSeqID] = (packet,sendTime)
+            waitAckPacket[SeqID] = (packet,sendTime)
             nextSeqID += 1
         
         # Wait for resonse <<<<<
@@ -59,28 +60,29 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             print(f"Receive ACK ID: {AckID} <<<")
 
             # ACK must be > window range
-            if AckID > baseIndex:
-                # checking all window section
-                for SeqID in range(baseIndex, AckID):
-                    # Comfirm the wating ACK response is now comfirmed.
-                    if SeqID in waitAckPacket:
-                        _, sendTime = waitAckPacket[SeqID]
-                        del waitAckPacket[SeqID]
+            while baseIndex * MESSAGE_SIZE < AckID:
 
-                        # Calculating Delay
-                        recvTime = time.time()
-                        delay = recvTime - sendTime
-                        delays.append(delay)
+                SeqID = baseIndex * MESSAGE_SIZE
 
-                        # Calculate jitter
-                        if lastDelay is not None:
-                            jitterIncrement = abs(delay - lastDelay)
-                            totalJitter += jitterIncrement
-                        lastDelay = delay
+                # Comfirm the wating ACK response is now comfirmed.
+                if SeqID in waitAckPacket:
+                    _, sendTime = waitAckPacket[SeqID]
+                    del waitAckPacket[SeqID]
+
+                    # Calculating Delay
+                    recvTime = time.time()
+                    delay = recvTime - sendTime
+                    delays.append(delay)
+
+                    # Calculate jitter
+                    if lastDelay is not None:
+                        jitterIncrement = abs(delay - lastDelay)
+                        totalJitter += jitterIncrement
+                    lastDelay = delay
 
                 # Comfired received, now base index can move on   
-                baseIndex = AckID
-                print(f"Window moved! new base index [{baseIndex}] +++")
+                baseIndex += 1
+            print(f"Window moved! new base index [{baseIndex}] +++")
 
         # timeout send all window >>>>>>
         except socket.timeout:
@@ -88,8 +90,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             totalRetransmission += 1
             print(f"Timeout! Retransmitting window from [{baseIndex}] >>>")
             for SeqID in range(baseIndex, nextSeqID):
+                reSeqID = SeqID * MESSAGE_SIZE
                 if SeqID in waitAckPacket:
-                    packet, sendTime = waitAckPacket[SeqID]
+                    packet, sendTime = waitAckPacket[reSeqID]
                     udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
 
