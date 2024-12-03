@@ -17,53 +17,80 @@ print(f"Total packets to send: {len(packets)}")
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     SERVER_ADDRESS = ('127.0.0.1', 5001)  # receiver address
 
-    # start calculator as socket created
+    # start calculator as socket created 
     startTime = time.time()
     totalRetransmission = 0
+    totalJitter = 0
+    delays = []
+    lastDelay = None
 
 
     # GBN window setting ===============================================
     windowSize = 5 
     baseIndex = 0
-    next_seq_id = 0
-    unacked_packets = {}
+    nextSeqID = 0
+    waitAckPacket = {}
 
 
     while baseIndex < len(packets):
 
-        # Send packets within the window
-        while next_seq_id < baseIndex + windowSize and next_seq_id < len(packets):
-            packet = packets[next_seq_id]
-            udpPacket = int.to_bytes(next_seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+        # Send window >>>>>>
+        # must check window index maximum greater than the next s
+        while nextSeqID < baseIndex + windowSize and nextSeqID < len(packets):
+            packet = packets[nextSeqID]
+            udpPacket = int.to_bytes(nextSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            print(f"Sent packet ID [{next_seq_id}] ({len(packet)} byte) >>>")
-            unacked_packets[next_seq_id] = packet  # Track the packet
-            next_seq_id += 1
+            print(f"Sent packet ID [{nextSeqID}] ({len(packet)} byte) >>>")
+
+            sendTime = time.time()
+
+            #  the list of the package with no ack response yet
+            # for now is all, record id, package info and time
+            waitAckPacket[nextSeqID] = (packet,sendTime)
+            nextSeqID += 1
         
-
+        # Wait for resonse <<<<<
         try:
-            # Wait for ACK
             udpSocket.settimeout(2)
-            ack, _ = udpSocket.recvfrom(PACKET_SIZE)
-            ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-            print(f"Receive ACK ID: {ack_id} <<<")
 
-            if ack_id > baseIndex:
-                # Slide the window forward
-                for seq_id in range(baseIndex, ack_id):
-                    if seq_id in unacked_packets:
-                        del unacked_packets[seq_id]
-                baseIndex = ack_id
+            # getting ACK package, getting ACK ID
+            ack, _ = udpSocket.recvfrom(PACKET_SIZE)
+            AckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+            print(f"Receive ACK ID: {AckID} <<<")
+
+            # ACK must be > window range
+            if AckID > baseIndex:
+                # checking all window section
+                for SeqID in range(baseIndex, AckID):
+                    # Comfirm the wating ACK response is now comfirmed.
+                    if SeqID in waitAckPacket:
+                        _, sendTime = waitAckPacket[SeqID]
+                        del waitAckPacket[SeqID]
+
+                        # Calculating Delay
+                        recvTime = time.time()
+                        delay = recvTime - sendTime
+                        delays.append(delay)
+
+                        # Calculate jitter
+                        if lastDelay is not None:
+                            jitterIncrement = abs(delay - lastDelay)
+                            totalJitter += jitterIncrement
+                        lastDelay = delay
+
+                # Comfired received, now base index can move on   
+                baseIndex = AckID
                 print(f"Window moved! new base index [{baseIndex}] +++")
 
+        # timeout send all window >>>>>>
         except socket.timeout:
             # Retransmit all packets in the current window
             totalRetransmission += 1
-            print(f"Timeout! Retransmitting window starting from baseIndex {baseIndex}...")
-            for seq_id in range(baseIndex, next_seq_id):
-                if seq_id in unacked_packets:
-                    packet = unacked_packets[seq_id]
-                    udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+            print(f"Timeout! Retransmitting window from [{baseIndex}] >>>")
+            for SeqID in range(baseIndex, nextSeqID):
+                if SeqID in waitAckPacket:
+                    packet, sendTime = waitAckPacket[SeqID]
+                    udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
 
 
@@ -72,11 +99,32 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
     print(f"Sent FINACK signal XXX")
 
-# Staticstic Output
+# Staticstic Output ===================================================
+# all time
 endTime = time.time()
 useTime = endTime - startTime
 
-print("\n====== Reception Statistics ======")
+# throuput
+totalData = len(packets) * MESSAGE_SIZE
+throughput = totalData / useTime
+
+# delay and jitter
+avgDelay = sum(delays) / len(delays)
+avgJitter = totalJitter / (len(delays) - 1) if len(delays) > 1 else 0
+
+# final metric
+metric = (
+    0.2 * (throughput / 2000) +
+    0.1 * (1 / avgJitter if avgJitter > 0 else 0) +
+    0.8 * (1 / avgDelay if avgDelay > 0 else 0)
+)
+
+print("\n=========== METRIC ==================")
 print(f"Total packets sent: {len(packets)}")
 print(f"Total retransmission: {totalRetransmission}")
-print(f"Time taken: {useTime:.2f} seconds")
+
+print(f"Total Time: {useTime:.2f} seconds")
+print(f"Throughput: {throughput:.2f} bytes/second")
+print(f"Average packet delay: {avgDelay:.2f} seconds")
+print(f"Average jitter: {avgJitter:.2f} seconds")
+print(f"Performance Metric: {metric:.2f}")
