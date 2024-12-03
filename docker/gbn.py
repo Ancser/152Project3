@@ -68,7 +68,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 # Comfirm the wating ACK response is now comfirmed.
                 if SeqID in waitAckPacket:
                     _, sendTime = waitAckPacket.pop(SeqID)
-                    del waitAckPacket[SeqID]
+                    
 
                     # Calculating Delay
                     recvTime = time.time()
