@@ -8,7 +8,7 @@ MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
 # this window size from 10-25 is Comfirmed safe
 # over 25 will have too much retransmission lag
-WINDOW_SIZE = 20
+WINDOW_SIZE = 23
 TIMEOUT = 1
 
 # selective resend
