@@ -35,7 +35,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 sendTime = time.time()
                 udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                print(f"Sent packet ID [{SeqID}] ({len(packet)} byte) >>>")
+                print(f"Sent packet [{SeqID}] ({len(packet)} byte) >>>")
 
                 # wait for response =============================================
                 # setting timeout
@@ -46,8 +46,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 
                 # comfirm ack format
                 AckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-                print(f"Receive ACK ID: {AckID} for pacakge ID {SeqID} <<<")
+                print(f"ACK Requesting [{AckID}], Comfirmed [{SeqID}] <<<")
                 
+                # metruc calculation ==============================================
                 # Delay
                 recvTime = time.time()
                 delay = recvTime - sendTime
@@ -58,17 +59,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     totalJitter += abs(delay - lastDelay)
                 lastDelay = delay
 
-                # Send next data of currect.
-                # seq_id is current, must match the expected return ack with higher id
+                # if error on different arc =============================================
+                # this might never happen for this receiver
                 if AckID == SeqID + len(packet):
                     SeqID += len(packet)
-                    print(f"Success! ACK ID mactched with {SeqID} +++")
+                    print(f"Comfirmed received package [{SeqID}], Shift to next Index+++")
                     break
                 else:
                     print(f"Warning! ACK ID not matched {AckID}, expected{SeqID} xxx")
                     continue
 
-
+            # Send next data of currect. =============================================      
             except socket.timeout:
                 totalRetransmission += 1
                 print(f"Timeout package ID [{SeqID}], Retransmission >>>")

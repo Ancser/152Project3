@@ -5,6 +5,10 @@ PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
+# move constant here
+WINDOW_SIZE = 5
+TIMEOUT = 1
+
 # read file to send
 with open('file.mp3', 'rb') as f:
     data = f.read()
@@ -26,64 +30,67 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
 
     # GBN window setting ===============================================
-    windowSize = 5 
     baseIndex = 0
-    nextSeqID = 0
-    waitAckPacket = {}
+    newIndex = 0
+    sentTime = {}
 
 
     while baseIndex < len(packets):
 
-        # Send window >>>>>>
+        # Send window ======================================================== >>>>>>
         # must check window index maximum greater than the next s
-        while nextSeqID < baseIndex + windowSize and nextSeqID < len(packets):
-            packet = packets[nextSeqID]
-            SeqID = nextSeqID * MESSAGE_SIZE
-            udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
-            udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            print(f"Sent packet ID [{SeqID}] ({len(packet)} byte) >>>")
+        while newIndex < baseIndex + WINDOW_SIZE and newIndex < len(packets):
+            
+            # index to full size id, otherwise mismatch
+            SeqID = newIndex
+            sizeSeqID = newIndex * MESSAGE_SIZE
 
-            sendTime = time.time()
+            # send package
+            udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+            udpSocket.sendto(udpPacket, SERVER_ADDRESS)
 
             #  the list of the package with no ack response yet
             # for now is all, record id, package info and time
-            waitAckPacket[SeqID] = (packet,sendTime)
-            nextSeqID += 1
+            sentTime[sizeSeqID] = time.time()
+
+            print(f"Sent packet [{sizeSeqID}] ({len(packets)} byte) >>>")
+
+            newIndex += 1
         
-        # Wait for resonse <<<<<
+        # Wait for resonse ====================================================== <<<<<
+        # it is same running time with the sending 1-1, not efficient
         try:
-            # time out setting this might make huge change,try it!!!
-            udpSocket.settimeout(1)
+            # time out setting this might make huge change
+            udpSocket.settimeout(TIMEOUT)
 
             # getting ACK package, getting ACK ID
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
-            AckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-            print(f"Receive ACK ID: {AckID} <<<")
+            sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+            SeqID = sizeAckID // MESSAGE_SIZE
 
-            # ACK must be > window range
-            while baseIndex * MESSAGE_SIZE < AckID:
+            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID+1} ###")
 
-                SeqID = baseIndex * MESSAGE_SIZE
+            # Comfirm the wating ACK response is now comfirmed.
+            if sizeAckID in sentTime:
+                _, sendTime = sentTime.pop(sizeAckID)
+                
+                # Calculating Delay
+                recvTime = time.time()
+                delay = recvTime - sendTime
+                delayList.append(delay)
 
-                # Comfirm the wating ACK response is now comfirmed.
-                if SeqID in waitAckPacket:
-                    _, sendTime = waitAckPacket.pop(SeqID)
-                    
+                # Calculate jitter
+                if lastDelay is not None:
+                    jitterIncrement = abs(delay - lastDelay)
+                    totalJitter += jitterIncrement
 
-                    # Calculating Delay
-                    recvTime = time.time()
-                    delay = recvTime - sendTime
-                    delayList.append(delay)
+                lastDelay = delay
 
-                    # Calculate jitter
-                    if lastDelay is not None:
-                        jitterIncrement = abs(delay - lastDelay)
-                        totalJitter += jitterIncrement
-                    lastDelay = delay
-
-                # Comfired received, now base index can move on   
+            # comfirmed received, move in window
+            while baseIndex < len(packets) and baseIndex * MESSAGE_SIZE <= sizeAckID:
                 baseIndex += 1
-            print(f"Window moved! new base index [{baseIndex}] +++")
+
+            print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
 
         # timeout send all window >>>>>>
         except socket.timeout:
@@ -91,16 +98,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             print(f"Timeout! Retransmitting window from [{baseIndex}] >>>")
             totalRetransmission += 1
 
-            for SeqID in range(baseIndex, nextSeqID):
-                reSeqID = SeqID * MESSAGE_SIZE
-                print(f"Resending {list(waitAckPacket.keys())}")
-                if SeqID in waitAckPacket:
-                    # preparing resend package
-                    packet, sendTime = waitAckPacket[reSeqID]
+            for SeqID  in range(baseIndex, newIndex):
+                sizeReSeqID = SeqID  * MESSAGE_SIZE
+                
+                # resent all package, from time list not delisted
+                if SeqID  in sentTime:
 
                     # resend process
-                    udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+                    udpPacket = int.to_bytes(sizeReSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+
+                    print(f"Resending package [{sizeReSeqID}]>>>")
                     
 
 
