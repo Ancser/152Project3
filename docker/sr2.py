@@ -53,7 +53,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # window variable ===============================================
     # sent time must be record for each pacakge
     baseIndex = 0
-    newIndex = 0
+    newIndex = -1
     sentTime = {}
     ackList = set()
 
@@ -64,6 +64,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         # send -------------------------------------------
         # this process never stop
         # detail condition check window capcatiy
+        # only sent new package if the new package is not too far
         while newIndex < baseIndex + WINDOW_SIZE and newIndex < len(packets):
             SeqID = newIndex
             sizeSeqID = SeqID * MESSAGE_SIZE
@@ -137,7 +138,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # send fin package
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print(f"Sent FINACK signal :)")
+    print(f"Sent FINACK signal XXXX")
 
 
 # Staticstic Output ===================================================
