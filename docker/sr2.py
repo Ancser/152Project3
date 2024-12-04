@@ -53,7 +53,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # window variable ===============================================
     # sent time must be record for each pacakge
     baseIndex = 0
-    newIndex = -1
+    newIndex = 0
     sentTime = {}
     ackList = set()
 
@@ -91,7 +91,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
             # comfirmed receive, add to acked list
             SeqID = (sizeAckID // MESSAGE_SIZE)
-            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID} :)")
+            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID} ###")
             
             # calculated matric +++++++++++++++++++++++
             # if no need to calculated should removed for submittion?
