@@ -107,9 +107,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     del sentTime[sizeSeqID]
                 if comfirmedSeqID in ackList:
                     ackList.remove(comfirmedSeqID)
-            
-            baseIndex = SeqID + 1
+
             print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
+
+            # oldest file comfirmed, shifting
+            baseIndex = SeqID + 1
 
         # timeout ---------------------------------------
         # alway update time
@@ -121,6 +123,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             if sizeSeqID in sentTime and (now - sentTime[sizeSeqID]) > TIMEOUT:
                 
                 # set up package
+                # timer reset for that package
                 udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
                 sentTime[sizeSeqID] = now
