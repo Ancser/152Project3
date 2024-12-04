@@ -20,11 +20,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # start calculator as socket created
     startTime = time.time()
     totalRetransmission = 0
-    delays = []
+    delayList = []
     totalJitter = 0
     lastDelay = None  
 
-    seq_id = 0
+    SeqID = 0
 
     for packet in packets:
         
@@ -33,9 +33,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             try:
                 # create and send the package ====================================
                 sendTime = time.time()
-                udpPacket = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
+                udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packet
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                print(f"Sent packet ID [{seq_id}] ({len(packet)} byte) >>>")
+                print(f"Sent packet ID [{SeqID}] ({len(packet)} byte) >>>")
 
                 # wait for response =============================================
                 # setting timeout
@@ -45,13 +45,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 ack, _ = udpSocket.recvfrom(PACKET_SIZE)
                 
                 # comfirm ack format
-                ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-                print(f"Receive ACK ID: {ack_id} for pacakge ID {seq_id} <<<")
+                AckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+                print(f"Receive ACK ID: {AckID} for pacakge ID {SeqID} <<<")
                 
                 # Delay
                 recvTime = time.time()
                 delay = recvTime - sendTime
-                delays.append(delay)
+                delayList.append(delay)
 
                 # Jitter
                 if lastDelay is not None:
@@ -60,18 +60,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
                 # Send next data of currect.
                 # seq_id is current, must match the expected return ack with higher id
-                if ack_id == seq_id + len(packet):
-                    seq_id += len(packet)
-                    print(f"Success! ACK ID mactched with {seq_id} +++")
+                if AckID == SeqID + len(packet):
+                    SeqID += len(packet)
+                    print(f"Success! ACK ID mactched with {SeqID} +++")
                     break
                 else:
-                    print(f"Warning! ACK ID not matched {ack_id}, expected{seq_id} xxx")
+                    print(f"Warning! ACK ID not matched {AckID}, expected{SeqID} xxx")
                     continue
 
 
             except socket.timeout:
                 totalRetransmission += 1
-                print(f"Timeout package ID [{seq_id}], Retransmission...")
+                print(f"Timeout package ID [{SeqID}], Retransmission >>>")
 
 
     # send end signal
@@ -80,19 +80,19 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     print(f"Sent FINACK signal XXX")
 
 # Staticstic Output ===================================================
-# all time
+# time ---------------------------------------
 endTime = time.time()
 useTime = endTime - startTime
 
-# throuput
+# throuput ------------------------------------
 totalData = len(packets) * MESSAGE_SIZE
 throughput = totalData / useTime
 
-# delay and jitter
-avgDelay = sum(delays) / len(delays)
-avgJitter = totalJitter / (len(delays) - 1) if len(delays) > 1 else 0
+# delay and jitter -----------------------------
+avgDelay = sum(delayList) / len(delayList) if delayList else 0
+avgJitter = totalJitter / (len(delayList) - 1) if len(delayList) > 1 else 0
 
-# final metric
+# metric ---------------------------------------
 metric = (
     0.2 * (throughput / 2000) +
     0.1 * (1 / avgJitter if avgJitter > 0 else 0) +
@@ -100,11 +100,11 @@ metric = (
 )
 
 print("\n=========== METRIC ==================")
-print(f"Total packets sent: {len(packets)}")
-print(f"Total retransmission: {totalRetransmission}")
+print(f"Package sent: {len(packets)}")
+print(f"Package retransmission: {totalRetransmission}")
+print(f"Time: {useTime:.7f} seconds\n")
 
-print(f"Time taken: {useTime:.2f} seconds")
-print(f"Throughput: {throughput:.2f} bytes/second")
-print(f"Average packet delay: {avgDelay:.2f} seconds")
-print(f"Average jitter: {avgJitter:.2f} seconds")
-print(f"Performance Metric: {metric:.2f}")
+print(f"Throughput: {throughput:.7f} bytes/second")
+print(f"Average delay: {avgDelay:.7f} seconds")
+print(f"Average jitter: {avgJitter:.7f} seconds")
+print(f"Metric: {metric:.7f}")

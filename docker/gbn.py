@@ -21,7 +21,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     startTime = time.time()
     totalRetransmission = 0
     totalJitter = 0
-    delays = []
+    delayList = []
     lastDelay = None
 
 
@@ -73,7 +73,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     # Calculating Delay
                     recvTime = time.time()
                     delay = recvTime - sendTime
-                    delays.append(delay)
+                    delayList.append(delay)
 
                     # Calculate jitter
                     if lastDelay is not None:
@@ -110,19 +110,19 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     print(f"Sent FINACK signal XXX")
 
 # Staticstic Output ===================================================
-# all time
+# time ---------------------------------------
 endTime = time.time()
 useTime = endTime - startTime
 
-# throuput
+# throuput ------------------------------------
 totalData = len(packets) * MESSAGE_SIZE
 throughput = totalData / useTime
 
-# delay and jitter
-avgDelay = sum(delays) / len(delays) if delays else 0
-avgJitter = totalJitter / (len(delays) - 1) if len(delays) > 1 else 0
+# delay and jitter -----------------------------
+avgDelay = sum(delayList) / len(delayList) if delayList else 0
+avgJitter = totalJitter / (len(delayList) - 1) if len(delayList) > 1 else 0
 
-# final metric
+# metric ---------------------------------------
 metric = (
     0.2 * (throughput / 2000) +
     0.1 * (1 / avgJitter if avgJitter > 0 else 0) +
@@ -130,11 +130,11 @@ metric = (
 )
 
 print("\n=========== METRIC ==================")
-print(f"Total packets sent: {len(packets)}")
-print(f"Total retransmission: {totalRetransmission}")
+print(f"Package sent: {len(packets)}")
+print(f"Package retransmission: {totalRetransmission}")
+print(f"Time: {useTime:.7f} seconds\n")
 
-print(f"Total Time: {useTime:.2f} seconds")
-print(f"Throughput: {throughput:.2f} bytes/second")
-print(f"Average packet delay: {avgDelay:.2f} seconds")
-print(f"Average jitter: {avgJitter:.2f} seconds")
-print(f"Performance Metric: {metric:.2f}")
+print(f"Throughput: {throughput:.7f} bytes/second")
+print(f"Average delay: {avgDelay:.7f} seconds")
+print(f"Average jitter: {avgJitter:.7f} seconds")
+print(f"Metric: {metric:.7f}")
