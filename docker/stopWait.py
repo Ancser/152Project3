@@ -60,7 +60,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 lastDelay = delay
 
                 # if error on different arc =============================================
-                # this might never happen for this receiver
+                # this will shift the next package, otherwise, it will loop same seqID
                 if AckID == SeqID + len(packet):
                     SeqID += len(packet)
                     print(f"Comfirmed received package [{SeqID}], Shift to next Index+++")
