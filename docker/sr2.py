@@ -6,8 +6,8 @@ PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
-# this window size from 10-20 is Comfirmed safe
-WINDOW_SIZE = 25
+# this window size from 10-25 is Comfirmed safe
+WINDOW_SIZE = 30
 TIMEOUT = 1
 
 # selective resend
