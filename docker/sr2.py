@@ -113,6 +113,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     ackList.remove(comfirmedSeqID)
 
             print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
+            
+            # send fin package
+            if(baseIndex == len(packets)):
+                finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
+                udpSocket.sendto(finPacket, SERVER_ADDRESS)
+                print(f"Sent FINACK signal XXXX")
+            
 
             # oldest file comfirmed, shifting
             baseIndex = SeqID + 1
@@ -135,10 +142,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 print(f"RE-Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
                 totalRetransmission += 1
         
-    # send fin package
-    finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
-    udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print(f"Sent FINACK signal XXXX")
+    
 
 
 # Staticstic Output ===================================================
