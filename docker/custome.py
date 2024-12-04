@@ -26,7 +26,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
 
     # GBN window setting ===============================================
-    windowSize = 500 
+    windowSize = 50
     baseIndex = 0
     nextSeqID = 0
     waitAckPacket = {}
