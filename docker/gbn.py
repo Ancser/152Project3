@@ -53,7 +53,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         # Wait for resonse <<<<<
         try:
             # time out setting this might make huge change,try it!!!
-            udpSocket.settimeout(2)
+            udpSocket.settimeout(1)
 
             # getting ACK package, getting ACK ID
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
