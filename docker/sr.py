@@ -87,6 +87,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 delay = recvTime - sentTime[AckID]
                 delayList.append(delay)
 
+                # deque from the list, make sure no resend
+                del sentTime[AckID]
+
                 # jitter
                 if lastDelay is not None:
                     totalJitter += abs(delay - lastDelay)
