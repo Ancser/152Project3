@@ -79,8 +79,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
 
             # comfirmed receive, add to acked list
-            SeqID = (sizeAckID - MESSAGE_SIZE)
-            print(f"Received ACK {sizeAckID}, Comfirmed transmitted Package {SeqID}")
+            SeqID = (sizeAckID / MESSAGE_SIZE)
+            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID}")
 
 
             if SeqID >= 0:
