@@ -43,7 +43,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # window variable ===============================================
     # sent time must be record for each pacakge
     baseIndex = 0
-    nextSeqID = 0
+    newIndex = 0
     sentTime = {}
     ackList = set()
 
@@ -54,19 +54,19 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         # send -------------------------------------------
         # this process never stop
         # detail condition check window capcatiy
-        while nextSeqID < baseIndex + WINDOW_SIZE and nextSeqID < len(packets):
-            SeqID = nextSeqID
-            fullSeqID = SeqID * MESSAGE_SIZE
+        while newIndex < baseIndex + WINDOW_SIZE and newIndex < len(packets):
+            SeqID = newIndex
+            sizeSeqID = SeqID * MESSAGE_SIZE
 
             # set up package
-            udpPacket = int.to_bytes(fullSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+            udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            sentTime[fullSeqID] = time.time()
+            sentTime[sizeSeqID] = time.time()
 
-            print(f"Snet package [{fullSeqID}] ({len(packets[SeqID])} bytes) >>>") 
+            print(f"Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
 
             # move to next
-            nextSeqID += 1
+            newIndex += 1
 
 
         # wait ack --------------------------------------
@@ -76,18 +76,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         received, _, _ = select.select([udpSocket],[],[],TIMEOUT)
         if received:
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
-            AckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+            sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
 
             # comfirmed receive, add to acked list
-            ackSeqID = (AckID - MESSAGE_SIZE)
-            print(f"Received ACK {AckID}, Comfirmed transmitted Package {ackSeqID}")
+            SeqID = (sizeAckID - MESSAGE_SIZE)
+            print(f"Received ACK {sizeAckID}, Comfirmed transmitted Package {SeqID}")
 
 
-            if ackSeqID >= 0:
+            if SeqID >= 0:
                 # calculated matric
-                if AckID in sentTime:
+                if sizeAckID in sentTime:
                     receiveTime = time.time()
-                    delay = receiveTime - sentTime[AckID]
+                    delay = receiveTime - sentTime[sizeAckID]
                     delayList.append(delay)
 
                     if lastDelay is not None:
@@ -95,31 +95,31 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     lastDelay = delay
 
                 #  hendel and update comfirm list
-                for comfirmedSeqID in range(baseIndex, ackSeqID +1):
-                    fullSeqID = comfirmedSeqID * MESSAGE_SIZE
-                    if fullSeqID in sentTime:
-                        del sentTime[fullSeqID]
+                for comfirmedSeqID in range(baseIndex, SeqID +1):
+                    sizeSeqID = comfirmedSeqID * MESSAGE_SIZE
+                    if sizeSeqID in sentTime:
+                        del sentTime[sizeSeqID]
                     if comfirmedSeqID in ackList:
                         ackList.remove(comfirmedSeqID)
                 
-                baseIndex = ackSeqID + 1
-                print(f"Window Moved: baseIndex[{baseIndex}], next ID [{nextSeqID}]")
+                baseIndex = SeqID + 1
+                print(f"Window Moved: comfirmed [{baseIndex}], current at [{newIndex}]")
 
         # timeout ---------------------------------------
         # alway update time
         now = time.time()
         # checking all the unsettleed index to current id (window)
-        for SeqID in range(baseIndex, nextSeqID):
-            fullSeqID = SeqID * MESSAGE_SIZE
+        for SeqID in range(baseIndex, newIndex):
+            sizeSeqID = SeqID * MESSAGE_SIZE
 
-            if fullSeqID in sentTime and (now - sentTime[fullSeqID]) > TIMEOUT:
+            if sizeSeqID in sentTime and (now - sentTime[sizeSeqID]) > TIMEOUT:
                 
                 # set up package
-                udpPacket = int.to_bytes(fullSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+                udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                sentTime[fullSeqID] = now
+                sentTime[sizeSeqID] = now
 
-                print(f"RE-Snet package [{fullSeqID}] ({len(packets[SeqID])} bytes) >>>") 
+                print(f"RE-Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
                 totalRetransmission += 1
         
     # send fin package
