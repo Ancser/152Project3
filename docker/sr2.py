@@ -78,11 +78,23 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
             AckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
 
-            # metric
-
             # comfirmed receive, add to acked list
             ackSeqID = (AckID - MESSAGE_SIZE)
+            print(f"Received ACK {AckID}, Comfirmed transmitted Package {ackSeqID}")
+
+
             if ackSeqID >= 0:
+                # calculated matric
+                if AckID in sentTime:
+                    receiveTime = time.time()
+                    delay = receiveTime - sentTime[AckID]
+                    delayList.append(delay)
+
+                    if lastDelay is not None:
+                        totalJitter += abs(delay - lastDelay)
+                    lastDelay = delay
+
+                #  hendel and update comfirm list
                 for comfirmedSeqID in range(baseIndex, ackSeqID +1):
                     fullSeqID = comfirmedSeqID * MESSAGE_SIZE
                     if fullSeqID in sentTime:
@@ -90,7 +102,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     if comfirmedSeqID in ackList:
                         ackList.remove(comfirmedSeqID)
                 
-                baseIndex =  max(ackList/len(packets)) + 1 if ackList else ackSeqID + 1
+                baseIndex = ackSeqID + 1
                 print(f"Window Moved: baseIndex[{baseIndex}], next ID [{nextSeqID}]")
 
         # timeout ---------------------------------------
