@@ -80,7 +80,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
             # comfirmed receive, add to acked list
             SeqID = (sizeAckID // MESSAGE_SIZE)
-            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID}")
+            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID} ===")
 
 
             if SeqID >= 0:
@@ -103,7 +103,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                         ackList.remove(comfirmedSeqID)
                 
                 baseIndex = SeqID + 1
-                print(f"Window Moved: comfirmed [{baseIndex}], current at [{newIndex}]")
+                print(f"Window Moved: comfirmed [{baseIndex}], current at [{newIndex}] []->")
 
         # timeout ---------------------------------------
         # alway update time
