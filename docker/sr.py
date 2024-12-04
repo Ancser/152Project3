@@ -57,13 +57,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         # detail condition check window capcatiy
         while nextSeqID < baseIndex + WINDOW_SIZE and nextSeqID < len(packets):
             SeqID = nextSeqID
-            
-            # set up package
-            udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
-            udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            sentTime[SeqID] = time.time()
+            fullSeqID = SeqID * MESSAGE_SIZE
 
-            print(f"Snet package [{SeqID}] ({len(packets[SeqID])} bytes) >>>") 
+            # set up package
+            udpPacket = int.to_bytes(fullSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+            udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+            sentTime[fullSeqID] = time.time()
+
+            print(f"Snet package [{fullSeqID}] ({len(packets[SeqID])} bytes) >>>") 
 
             # move to next
             nextSeqID += 1
@@ -103,14 +104,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         now = time.time()
         # checking all the unsettleed index to current id (window)
         for SeqID in range(baseIndex, nextSeqID):
-            if SeqID in sentTime and (now - sentTime[SeqID]) > TIMEOUT:
+            fullSeqID = SeqID * MESSAGE_SIZE
+
+            if fullSeqID in sentTime and (now - sentTime[fullSeqID]) > TIMEOUT:
                 
                 # set up package
-                udpPacket = int.to_bytes(SeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+                udpPacket = int.to_bytes(fullSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                sentTime[SeqID] = now
+                sentTime[fullSeqID] = now
 
-                print(f"RE-Snet package [{SeqID}] ({len(packets[SeqID])} bytes) >>>") 
+                print(f"RE-Snet package [{fullSeqID}] ({len(packets[SeqID])} bytes) >>>") 
                 totalRetransmission += 1
         
     # send fin package
