@@ -7,13 +7,19 @@ SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
 # this window size from 10-25 is Comfirmed safe
-WINDOW_SIZE = 30
+# over 25 will have too much retransmission lag
+WINDOW_SIZE = 25
 TIMEOUT = 1
 
 # selective resend
 # reason: since receiver collect all packages in a list, no order is require, 
 # so we can continue to send without waiting, only resend when there is no response, 
 # need a independent timer for them.
+
+# 2 ID format:
+# a. index ID, as package / window index, start from 1-5000
+# b. size ID, mutiple with file size *1020, from 0-530,0000
+
 
 # read file to send
 with open('file.mp3', 'rb') as f:
@@ -81,30 +87,29 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
             # comfirmed receive, add to acked list
             SeqID = (sizeAckID // MESSAGE_SIZE)
-            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID} ===")
+            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID} :)")
+            
+            # calculated matric +++++++++++++++++++++++
+            # if no need to calculated should removed for submittion?
+            if sizeAckID in sentTime:
+                receiveTime = time.time()
+                delay = receiveTime - sentTime[sizeAckID]
+                delayList.append(delay)
 
+                if lastDelay is not None:
+                    totalJitter += abs(delay - lastDelay)
+                lastDelay = delay
 
-            if SeqID >= 0:
-                # calculated matric
-                if sizeAckID in sentTime:
-                    receiveTime = time.time()
-                    delay = receiveTime - sentTime[sizeAckID]
-                    delayList.append(delay)
-
-                    if lastDelay is not None:
-                        totalJitter += abs(delay - lastDelay)
-                    lastDelay = delay
-
-                #  hendel and update comfirm list
-                for comfirmedSeqID in range(baseIndex, SeqID +1):
-                    sizeSeqID = comfirmedSeqID * MESSAGE_SIZE
-                    if sizeSeqID in sentTime:
-                        del sentTime[sizeSeqID]
-                    if comfirmedSeqID in ackList:
-                        ackList.remove(comfirmedSeqID)
-                
-                baseIndex = SeqID + 1
-                print(f"Window Moved: comfirmed [{baseIndex}], current at [{newIndex}] []->")
+            #  hendel and update comfirm list
+            for comfirmedSeqID in range(baseIndex, SeqID +1):
+                sizeSeqID = comfirmedSeqID * MESSAGE_SIZE
+                if sizeSeqID in sentTime:
+                    del sentTime[sizeSeqID]
+                if comfirmedSeqID in ackList:
+                    ackList.remove(comfirmedSeqID)
+            
+            baseIndex = SeqID + 1
+            print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
 
         # timeout ---------------------------------------
         # alway update time
@@ -126,7 +131,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     # send fin package
     finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
-    print(f"Sent FINACK signal XXX")
+    print(f"Sent FINACK signal :)")
 
 
 # Staticstic Output ===================================================
