@@ -96,8 +96,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         except socket.timeout:
             # Retransmit all packets in the current window
             print(f"Timeout! Retransmitting window from [{baseIndex}] >>>")
-            totalRetransmission += 1
-
+            
             for SeqID  in range(baseIndex, newIndex):
                 sizeReSeqID = SeqID  * MESSAGE_SIZE
                 
@@ -107,6 +106,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     # resend process
                     udpPacket = int.to_bytes(sizeReSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+                    totalRetransmission += 1
 
                     print(f"Resending package [{sizeReSeqID}]>>>")
                     
