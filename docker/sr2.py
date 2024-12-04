@@ -90,7 +90,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     if comfirmedSeqID in ackList:
                         ackList.remove(comfirmedSeqID)
                 
-                baseIndex = ackList + 1
+                baseIndex =  max(ackList) + 1 if ackList else ackSeqID + 1
                 print(f"Window Moved: baseIndex[{baseIndex}], next ID [{nextSeqID}]")
 
         # timeout ---------------------------------------
