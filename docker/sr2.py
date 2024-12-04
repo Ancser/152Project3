@@ -115,7 +115,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
             
             # send fin package
-            if(baseIndex == len(packets)):
+            if(baseIndex == len(packets)+1):
                 finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
                 udpSocket.sendto(finPacket, SERVER_ADDRESS)
                 print(f"Sent FINACK signal XXXX")
