@@ -113,55 +113,41 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
             SeqID = (sizeAckID // MESSAGE_SIZE)
 
-            # calculated metric
-            currentTime = time.time()
-            if sizeAckID in packetTracker.sentTime:
-                delay = currentTime - packetTracker.sentTime[sizeAckID]
-                delayList.append(delay)
-                
-                # RTT and Jitter tracking
-                packetTracker.update_rtt(sizeAckID, delay)
-                if lastDelay is not None:
-                    totalJitter += abs(delay - lastDelay)
-                lastDelay = delay
+            if SeqID >= baseIndex:  # 確認ACK有效
+                print(f"Received ACK ID [{sizeAckID}] <<<")
 
-            # handle and update confirm list
-            for comfirmedSeqID in range(baseIndex, SeqID + 1):
-                comfirmedSizeSeqID = comfirmedSeqID * MESSAGE_SIZE
-                packetTracker.remove_packet(comfirmedSizeSeqID)
+                # update window
+                for confirmedSeqID in range(baseIndex, SeqID + 1):
+                    confirmedSizeSeqID = confirmedSeqID * MESSAGE_SIZE
+                    if confirmedSizeSeqID in packetTracker.sentTime:
+                        packetTracker.remove_packet(confirmedSizeSeqID)
 
-            # IMPROVEMENT: Dynamic window size adjustment
-            currentWindowSize = min(
-                MAX_WINDOW_SIZE, 
-                int(currentWindowSize * WINDOW_GROWTH_FACTOR)
-            )
+                # update window
+                baseIndex = SeqID + 1
 
-            baseIndex = SeqID + 1
+                # dynamic window
+                currentWindowSize = min(MAX_WINDOW_SIZE, int(currentWindowSize * WINDOW_GROWTH_FACTOR))
 
-        # timeout
-        currentTime = time.time()
+        # timeout:
         for SeqID in range(baseIndex, newIndex):
             sizeSeqID = SeqID * MESSAGE_SIZE
 
-            # Check if packet needs retransmission
             if sizeSeqID in packetTracker.sentTime:
                 sentTime = packetTracker.sentTime[sizeSeqID]
                 packetTimeout = packetTracker.get_timeout(sizeSeqID)
-                
+
                 if (currentTime - sentTime) > packetTimeout:
-                    # retransmit with decreased window
+                    # resent
                     udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                    
-                    # Update tracking and reduce window size
+
+                    # reduce window
                     packetTracker.sentTime[sizeSeqID] = currentTime
-                    currentWindowSize = max(
-                        WINDOW_SIZE, 
-                        int(currentWindowSize * WINDOW_DECREASE_FACTOR)
-                    )
-                    
+                    currentWindowSize = max(WINDOW_SIZE, int(currentWindowSize * WINDOW_DECREASE_FACTOR))
+
                     totalRetransmission += 1
                     print(f"RE-Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
+
 
 # Staticstic Output================================================
 endTime = time.time()
