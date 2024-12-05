@@ -111,9 +111,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
         if received:
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
             sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
-            SeqID = (sizeAckID // MESSAGE_SIZE)
+            SeqID = sizeAckID // MESSAGE_SIZE
 
-            if SeqID >= baseIndex:  # 確認ACK有效
+            if SeqID >= baseIndex:  # check ack
                 print(f"Received ACK ID [{sizeAckID}] <<<")
 
                 # update window
@@ -122,13 +122,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     if confirmedSizeSeqID in packetTracker.sentTime:
                         packetTracker.remove_packet(confirmedSizeSeqID)
 
-                # update window
-                baseIndex = SeqID + 1
+                # move windpw
+                baseIndex = SeqID + 1 
 
-                # dynamic window
+                # window size
                 currentWindowSize = min(MAX_WINDOW_SIZE, int(currentWindowSize * WINDOW_GROWTH_FACTOR))
+            else:
+                print(f"Received outdated or invalid ACK ID [{sizeAckID}] <<<")
+
 
         # timeout:
+        currentTime = time.time()
         for SeqID in range(baseIndex, newIndex):
             sizeSeqID = SeqID * MESSAGE_SIZE
 
@@ -137,16 +141,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 packetTimeout = packetTracker.get_timeout(sizeSeqID)
 
                 if (currentTime - sentTime) > packetTimeout:
-                    # resent
+                    # resnt
                     udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                     udpSocket.sendto(udpPacket, SERVER_ADDRESS)
 
-                    # reduce window
+                    # update window
                     packetTracker.sentTime[sizeSeqID] = currentTime
                     currentWindowSize = max(WINDOW_SIZE, int(currentWindowSize * WINDOW_DECREASE_FACTOR))
 
                     totalRetransmission += 1
                     print(f"RE-Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
+
 
 
 # Staticstic Output================================================
