@@ -70,7 +70,7 @@ def sender():
 
 # Receiving thread
 def receiver():
-    global baseIndex, lastAckId, dupAcks, cwnd, ssthresh, retransmissions, lastDelay, totalJitter
+    global baseIndex, nextIndex, lastAckId, dupAcks, cwnd, ssthresh, retransmissions, lastDelay, totalJitter
     while True:
         with lock:
             if baseIndex >= len(packets):  # Exit condition
@@ -105,7 +105,7 @@ def receiver():
                         ssthresh = max(cwnd // 2, 2)
                         cwnd = 1
                         dupAcks = 0
-                        nextIndex = baseIndex  # retransmit from last acked packet
+                        nextIndex = baseIndex  # Retransmit from last acked packet
                 else:
                     dupAcks = 0
                     lastAckId = sizeAckId
@@ -133,9 +133,10 @@ def receiver():
                 ssthresh = max(cwnd // 2, 2)
                 cwnd = 1
                 totalRetransmission += 1
-                nextIndex = baseIndex  # retransmit from last acked packet
+                nextIndex = baseIndex  # Retransmit from last acked packet
 
         time.sleep(0.01)  # Prevent high CPU usage
+
 
 # Start threads
 senderThread = threading.Thread(target=sender)
