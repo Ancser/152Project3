@@ -1,189 +1,122 @@
 import socket
 import time
 import select
-import heapq
+import threading
+from queue import Queue
 
-# PERFORMANCE OPTIMIZATION: Adaptive parameters
 PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
-
-# IMPROVEMENT: Dynamically adjustable window size with advanced congestion control
 WINDOW_SIZE = 25
-MAX_WINDOW_SIZE = 200
 TIMEOUT = 1
-WINDOW_GROWTH_FACTOR = 1.2
-WINDOW_DECREASE_FACTOR = 0.5
 
-# IMPROVEMENT: More sophisticated timeout and retransmission strategy
-BASE_TIMEOUT = 0.5
-ADAPTIVE_TIMEOUT_ALPHA = 0.125  # Recommended value for RTT estimation
-ADAPTIVE_TIMEOUT_BETA = 0.25   # Recommended value for RTT variation
-
-# read file to send
+# Read file to send
 with open('file.mp3', 'rb') as f:
     data = f.read()
 
-# break data
-packets = [data[i:i+MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
+# Break data into packets
+packets = [data[i:i + MESSAGE_SIZE] for i in range(0, len(data), MESSAGE_SIZE)]
 print(f"Total packets to send: {len(packets)}")
 
-# IMPROVEMENT: Advanced packet tracking with priority queue
-class PacketTracker:
-    def __init__(self):
-        self.sentTime = {}  # Track sent times (kept original variable name)
-        self.rttEstimates = {}  # RTT estimation per packet
-        self.rttVariations = {}  # RTT variation tracking
-        self.unackedPackets = []  # Priority queue of unacked packets
+# Shared variables and locks
+sentTime = {}
+ackList = set()
+baseIndex = 0
+newIndex = 0
+baseIndexLock = threading.Lock()
+queueLock = threading.Lock()
+queue = Queue()
 
-    def add_packet(self, sizeSeqID, sendTime):
-        heapq.heappush(self.unackedPackets, sizeSeqID)
-        self.sentTime[sizeSeqID] = sendTime
+# UDP socket setup
+udpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+SERVER_ADDRESS = ('127.0.0.1', 5001)
+udpSocket.setblocking(False)
+startTime = time.time()
 
-    def remove_packet(self, sizeSeqID):
-        self.sentTime.pop(sizeSeqID, None)
-        self.rttEstimates.pop(sizeSeqID, None)
-        self.rttVariations.pop(sizeSeqID, None)
+# Sender thread
+def sender():
+    global newIndex, baseIndex
 
-    def update_rtt(self, sizeSeqID, rtt):
-        # IMPROVEMENT: Adaptive RTT estimation (Jacobson's algorithm)
-        if sizeSeqID not in self.rttEstimates:
-            self.rttEstimates[sizeSeqID] = rtt
-            self.rttVariations[sizeSeqID] = rtt / 2
-        else:
-            oldRTT = self.rttEstimates[sizeSeqID]
-            oldVar = self.rttVariations[sizeSeqID]
-            
-            self.rttEstimates[sizeSeqID] = (1 - ADAPTIVE_TIMEOUT_ALPHA) * oldRTT + ADAPTIVE_TIMEOUT_ALPHA * rtt
-            self.rttVariations[sizeSeqID] = (1 - ADAPTIVE_TIMEOUT_BETA) * oldVar + ADAPTIVE_TIMEOUT_BETA * abs(rtt - oldRTT)
+    while True:
+        with baseIndexLock:
+            if baseIndex >= len(packets):
+                break
 
-    def get_timeout(self, sizeSeqID):
-        # Adaptive timeout calculation
-        if sizeSeqID not in self.rttEstimates:
-            return BASE_TIMEOUT
-        
-        estimatedRTT = self.rttEstimates[sizeSeqID]
-        rttVariation = self.rttVariations[sizeSeqID]
-        return estimatedRTT + 4 * rttVariation
-
-# make udp socket
-with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
-    # receiver address
-    SERVER_ADDRESS = ('127.0.0.1', 5001)
-
-    # allow dynamic waiting
-    udpSocket.setblocking(False)
-
-    # metric calculations
-    startTime = time.time()
-    totalRetransmission = 0
-    totalJitter = 0
-    delayList = []
-    lastDelay = None
-
-    # window variable
-    baseIndex = 0
-    newIndex = 0
-    currentWindowSize = WINDOW_SIZE
-    packetTracker = PacketTracker()
-
-    # Main send loop with advanced congestion control
-    while baseIndex < len(packets):
-        # send
-        while (newIndex < baseIndex + currentWindowSize and 
-               newIndex < len(packets)):
+        # Send new packets within the window
+        while newIndex < baseIndex + WINDOW_SIZE and newIndex < len(packets):
             SeqID = newIndex
             sizeSeqID = SeqID * MESSAGE_SIZE
 
-            # set up package
+            # Send packet
             udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
             
-            currentTime = time.time()
-            packetTracker.add_packet(sizeSeqID, currentTime)
-            
+            # Record send time
+            with queueLock:
+                sentTime[sizeSeqID] = time.time()
+
             print(f"Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
             newIndex += 1
 
-        # wait ack
+        # Resend timed-out packets
+        now = time.time()
+        with queueLock:
+            for SeqID in range(baseIndex, newIndex):
+                sizeSeqID = SeqID * MESSAGE_SIZE
+                if sizeSeqID in sentTime and (now - sentTime[sizeSeqID]) > TIMEOUT:
+                    udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+                    udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+                    sentTime[sizeSeqID] = now
+                    print(f"RE-Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
+        time.sleep(0.01)  # Small sleep to avoid CPU overload
+
+# Receiver thread
+def receiver():
+    global baseIndex
+
+    while True:
+        with baseIndexLock:
+            if baseIndex >= len(packets):
+                break
+
+        # Check for ACKs
         received, _, _ = select.select([udpSocket], [], [], TIMEOUT)
         if received:
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
             sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
+
+            # Mark ACK received
             SeqID = sizeAckID // MESSAGE_SIZE
+            print(f"Received ACK ID [{sizeAckID}] <<<")
 
-            if SeqID >= baseIndex:
-                print(f"Received ACK ID [{sizeAckID}] <<<")
+            # Update baseIndex and remove sentTime entries
+            with baseIndexLock:
+                with queueLock:
+                    for confirmedSeqID in range(baseIndex, SeqID + 1):
+                        sizeSeqID = confirmedSeqID * MESSAGE_SIZE
+                        if sizeSeqID in sentTime:
+                            del sentTime[sizeSeqID]
+                baseIndex = SeqID + 1
+        time.sleep(0.01)  # Small sleep to avoid CPU overload
 
-                # update window
-                for confirmedSeqID in range(baseIndex, SeqID + 1):
-                    confirmedSizeSeqID = confirmedSeqID * MESSAGE_SIZE
-                    if confirmedSizeSeqID in packetTracker.sentTime:
-                        packetTracker.remove_packet(confirmedSizeSeqID)
+# Start threads
+senderThread = threading.Thread(target=sender)
+receiverThread = threading.Thread(target=receiver)
 
-                baseIndex = SeqID + 1  # update window
-                currentWindowSize = min(MAX_WINDOW_SIZE, int(currentWindowSize * WINDOW_GROWTH_FACTOR))
-            else:
-                outdatedSeqID = sizeAckID // MESSAGE_SIZE
-                udpPacket = int.to_bytes(sizeAckID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[outdatedSeqID]
-                udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+senderThread.start()
+receiverThread.start()
 
-                print(f"Received outdated ACK ID [{sizeAckID}] <<< Resending packet [{sizeAckID}]")
+senderThread.join()
+receiverThread.join()
 
-
-
-        # timeout:
-        currentTime = time.time()
-
-        # all window
-        for SeqID in range(baseIndex, newIndex):
-            sizeSeqID = SeqID * MESSAGE_SIZE
-
-            if sizeSeqID in packetTracker.sentTime:
-                sentTime = packetTracker.sentTime[sizeSeqID]
-                packetTimeout = packetTracker.get_timeout(sizeSeqID)
-
-                # overtime
-                if (currentTime - sentTime) > packetTimeout:
-                    # resent
-                    udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
-                    udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-
-                    # window
-                    packetTracker.sentTime[sizeSeqID] = currentTime
-                    currentWindowSize = max(WINDOW_SIZE, int(currentWindowSize * WINDOW_DECREASE_FACTOR))
-
-                    totalRetransmission += 1
-                    print(f"RE-Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
-
-
-
-
-# Staticstic Output================================================
+# Metrics
 endTime = time.time()
 useTime = endTime - startTime
 
-# throughput
+# Throughput
 totalData = len(packets) * MESSAGE_SIZE
 throughput = totalData / useTime
 
-# delay and jitter
-avgDelay = sum(delayList) / len(delayList) if delayList else 0
-avgJitter = totalJitter / (len(delayList) - 1) if len(delayList) > 1 else 0
-
-# metric
-metric = (
-    0.3 * (throughput / 2000) +
-    0.2 * (1 / (avgJitter + 0.001)) +
-    0.5 * (1 / (avgDelay + 0.001))
-)
-
 print("\n=========== METRIC ==================")
-print(f"Package sent: {len(packets)}")
-print(f"Package retransmission: {totalRetransmission}")
-print(f"Time: {useTime:.7f} seconds\n")
-
-print(f"Throughput: {throughput:.7f} bytes/second")
-print(f"Average delay: {avgDelay:.7f} seconds")
-print(f"Average jitter: {avgJitter:.7f} seconds")
-print(f"Metric: {metric:.7f}")
+print(f"Total Time: {useTime:.2f} seconds")
+print(f"Throughput: {throughput:.2f} bytes/second")
