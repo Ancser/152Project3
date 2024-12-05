@@ -5,7 +5,7 @@ PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
-# TCP Reno specific constants
+# TCP Tahoe specific constants
 INITIAL_CWND = 1
 INITIAL_SSTHRESH = 64
 TIMEOUT = 2
@@ -41,13 +41,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     delayList = []
     lastDelay = None
 
-    # TCP Reno variables
+    # TCP Tahoe variables
     cwnd = INITIAL_CWND
     ssthresh = INITIAL_SSTHRESH
     dupAcks = 0
     lastAckId = -1
-    inFastRecovery = False
-    retries = 0
 
     # Window management
     baseIndex = 0
@@ -96,40 +94,32 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             # Handle new vs duplicate ACKs
             if ackNum >= lastAckId:
                 if ackNum > lastAckId:  # New ACK
+                    # Move window forward
                     oldBase = baseIndex
                     baseIndex = ackNum + 1
-                    nextIndex = max(baseIndex, nextIndex)  # Ensure nextIndex is ahead
 
-                    if inFastRecovery:
-                        cwnd = ssthresh  # Exit Fast Recovery
-                        inFastRecovery = False
-                        print("Exiting Fast Recovery")
-                    else:
-                        if cwnd < ssthresh:  # Slow Start
-                            cwnd = min(cwnd * 2, MAX_WINDOW_SIZE)
-                            print(f"Slow Start: Window increased to {cwnd}")
-                        else:  # Congestion Avoidance
-                            cwnd = min(cwnd + 1, MAX_WINDOW_SIZE)
-                            print(f"Congestion Avoidance: Window increased to {cwnd}")
+                    # Update window size with limit
+                    if cwnd < ssthresh:  # Slow Start
+                        cwnd = min(cwnd * 2, MAX_WINDOW_SIZE)
+                        print(f"Slow Start: Window increased to {cwnd}")
+                    else:  # Congestion Avoidance
+                        cwnd = min(cwnd + 1, MAX_WINDOW_SIZE)
+                        print(f"Congestion Avoidance: Window increased to {cwnd}")
 
                     dupAcks = 0
-                    retries = 0  # Reset retries on progress
                     print(f"Made progress: {oldBase} -> {baseIndex}")
+
+                    # Reset retries on successful ACK
+                    retries = 0
                 else:  # Duplicate ACK
                     dupAcks += 1
                     print(f"Duplicate ACK received. Count: {dupAcks}")
-
-                    if dupAcks == 3:  # Triple duplicate ACK
-                        if not inFastRecovery:
-                            print(f"Fast Recovery triggered")
-                            ssthresh = max(cwnd // 2, 2)
-                            cwnd = ssthresh + 3
-                            inFastRecovery = True
-                            nextIndex = baseIndex  # Retransmit lost packet
-                            totalRetransmission += 1
-                    elif inFastRecovery:
-                        cwnd = min(cwnd + 1, MAX_WINDOW_SIZE)  # Inflate window
-                        print(f"Fast Recovery: Window inflated to {cwnd}")
+                    if dupAcks == 3:
+                        print(f"Fast Retransmit triggered")
+                        ssthresh = max(cwnd // 2, 2)
+                        cwnd = 1
+                        dupAcks = 0
+                        nextIndex = baseIndex
 
                 lastAckId = ackNum
 
@@ -149,14 +139,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                     f"Max retries reached for packet {baseIndex}, moving to next packet"
                 )
                 baseIndex += 1
-                nextIndex = max(baseIndex, nextIndex)  # Ensure nextIndex is ahead
+                nextIndex = baseIndex
                 retries = 0
-
-            inFastRecovery = False  # Exit Fast Recovery on timeout
             ssthresh = max(cwnd // 2, 2)
             cwnd = 1
             dupAcks = 0
             totalRetransmission += 1
+            nextIndex = baseIndex
 
     # send end signal
     finPacket = (
