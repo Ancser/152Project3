@@ -74,7 +74,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
             sentTime[sizeSeqID] = time.time()
 
-            print(f"Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
+            # print(f"Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
 
             # move to next
             newIndex += 1
@@ -91,7 +91,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
             # comfirmed receive, add to acked list
             SeqID = (sizeAckID // MESSAGE_SIZE)
-            print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID+1} ###")
+            # print(f"Requesting ACK {sizeAckID}, Comfirmed transmitted Package {SeqID+1} ###")
             
             # calculated matric +++++++++++++++++++++++
             # if no need to calculated should removed for submittion?
@@ -110,13 +110,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 if sizeSeqID in sentTime:
                     del sentTime[sizeSeqID]
 
-            print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
+            # print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
             
             # send fin package
             if(baseIndex == len(packets)+1):
                 finPacket = int.to_bytes(-1, SEQ_ID_SIZE, byteorder='big', signed=True) + b'==FINACK=='
                 udpSocket.sendto(finPacket, SERVER_ADDRESS)
-                print(f"Sent FINACK signal XXXX")
+                # print(f"Sent FINACK signal XXXX")
             
 
             # oldest file comfirmed, shifting
@@ -137,7 +137,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
                 sentTime[sizeSeqID] = now
 
-                print(f"RE-Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
+                # print(f"RE-Snet package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>") 
                 totalRetransmission += 1
         
     
@@ -164,9 +164,9 @@ metric = (
 )
 
 print("\n=========== METRIC ==================")
-print(f"Package sent: {len(packets)}")
-print(f"Package retransmission: {totalRetransmission}")
-print(f"Time: {useTime:.7f} seconds\n")
+# print(f"Package sent: {len(packets)}")
+# print(f"Package retransmission: {totalRetransmission}")
+# print(f"Time: {useTime:.7f} seconds\n")
 
 print(f"Throughput: {throughput:.7f} bytes/second")
 print(f"Average delay: {avgDelay:.7f} seconds")
