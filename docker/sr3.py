@@ -7,7 +7,7 @@ from queue import Queue
 PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
-WINDOW_SIZE = 100
+WINDOW_SIZE = 40
 TIMEOUT = 1
 
 # Read file to send
