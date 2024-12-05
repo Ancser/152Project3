@@ -2,7 +2,6 @@ import socket
 import time
 import select
 import heapq
-import math
 
 # PERFORMANCE OPTIMIZATION: Adaptive parameters
 PACKET_SIZE = 1024
@@ -125,7 +124,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 baseIndex = SeqID + 1  # update window
                 currentWindowSize = min(MAX_WINDOW_SIZE, int(currentWindowSize * WINDOW_GROWTH_FACTOR))
             else:
-                udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+                udpPacket = int.to_bytes(sizeSeqID-(MESSAGE_SIZE), SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
                 print(f"Received outdated ACK ID [{sizeAckID}] <<<")
 
