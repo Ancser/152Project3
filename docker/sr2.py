@@ -109,8 +109,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 sizeSeqID = comfirmedSeqID * MESSAGE_SIZE
                 if sizeSeqID in sentTime:
                     del sentTime[sizeSeqID]
-                if comfirmedSeqID in ackList:
-                    ackList.remove(comfirmedSeqID)
 
             print(f"Comfirm index [{baseIndex}], newest index [{newIndex}] []->[]")
             
