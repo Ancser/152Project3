@@ -46,6 +46,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     ssthresh = INITIAL_SSTHRESH
     dupAcks = 0
     lastAckId = -1
+    retries = 0
 
     # Window management
     baseIndex = 0
@@ -55,48 +56,49 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     while baseIndex < len(packets):
         # Send packets within current window
         while nextIndex < baseIndex + cwnd and nextIndex < len(packets):
-            seqNum = nextIndex
+            sizeSeqId = nextIndex * MESSAGE_SIZE  # Convert index to sized sequence ID
 
             # send package
             udpPacket = (
-                int.to_bytes(seqNum, SEQ_ID_SIZE, byteorder="big", signed=True)
+                int.to_bytes(sizeSeqId, SEQ_ID_SIZE, byteorder="big", signed=True)
                 + packets[nextIndex]
             )
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-            sentTime[seqNum] = time.time()
+            sentTime[sizeSeqId] = time.time()
 
-            print_debug_info("SENDING", seqNum, seqNum, cwnd, ssthresh)
+            print_debug_info("SENDING", sizeSeqId, nextIndex, cwnd, ssthresh)
             print(
-                f"Sent packet [{seqNum}] ({len(packets[nextIndex])} bytes), Window: {min(cwnd, MAX_WINDOW_SIZE)} >>>"
+                f"Sent packet [{sizeSeqId}] ({len(packets[nextIndex])} bytes), Window: {min(cwnd, MAX_WINDOW_SIZE)} >>>"
             )
             nextIndex += 1
 
         try:
             udpSocket.settimeout(TIMEOUT)
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
-            ackNum = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder="big", signed=True)
+            sizeAckId = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder="big", signed=True)
+            ackIndex = sizeAckId // MESSAGE_SIZE  # Convert sized ID back to index
 
-            print_debug_info("RECEIVED ACK", ackNum, ackNum, cwnd, ssthresh)
-            print(f"Received ACK for packet {ackNum} ###")
+            print_debug_info("RECEIVED ACK", sizeAckId, ackIndex, cwnd, ssthresh)
+            print(f"Received ACK for packet {sizeAckId} ###")
 
             # Handle delay and jitter calculations
-            if ackNum in sentTime:
+            if sizeAckId in sentTime:
                 recvTime = time.time()
-                delay = recvTime - sentTime[ackNum]
+                delay = recvTime - sentTime[sizeAckId]
                 delayList.append(delay)
 
                 if lastDelay is not None:
                     jitterIncrement = abs(delay - lastDelay)
                     totalJitter += jitterIncrement
                 lastDelay = delay
-                sentTime.pop(ackNum)
+                sentTime.pop(sizeAckId)
 
             # Handle new vs duplicate ACKs
-            if ackNum >= lastAckId:
-                if ackNum > lastAckId:  # New ACK
+            if sizeAckId >= lastAckId:
+                if sizeAckId > lastAckId:  # New ACK
                     # Move window forward
                     oldBase = baseIndex
-                    baseIndex = ackNum + 1
+                    baseIndex = ackIndex + 1
 
                     # Update window size with limit
                     if cwnd < ssthresh:  # Slow Start
@@ -107,10 +109,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                         print(f"Congestion Avoidance: Window increased to {cwnd}")
 
                     dupAcks = 0
+                    retries = 0  # Reset retries on successful ACK
                     print(f"Made progress: {oldBase} -> {baseIndex}")
-
-                    # Reset retries on successful ACK
-                    retries = 0
                 else:  # Duplicate ACK
                     dupAcks += 1
                     print(f"Duplicate ACK received. Count: {dupAcks}")
@@ -121,7 +121,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                         dupAcks = 0
                         nextIndex = baseIndex
 
-                lastAckId = ackNum
+                lastAckId = sizeAckId
 
             print(f"Base index [{baseIndex}], Next index [{nextIndex}] []->[]")
 
