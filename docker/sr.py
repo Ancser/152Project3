@@ -12,7 +12,7 @@ MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 # 30 = 67s
 # over 25 will have too much retransmission lag
 WINDOW_SIZE = 25
-TIMEOUT = 1
+TIMEOUT = 2
 
 # selective resend
 # reason: since receiver collect all packages in a list, no order is require, 
