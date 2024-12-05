@@ -5,10 +5,22 @@ PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
-# TCP Tahoe specific constants
+# TCP Reno specific constants
 INITIAL_CWND = 1
 INITIAL_SSTHRESH = 64
-TIMEOUT = 1
+TIMEOUT = 2
+MAX_WINDOW_SIZE = 25
+MAX_RETRIES = 3
+
+
+def print_debug_info(action, seqId, pktId, cwnd, ssthresh):
+    print(f"\n=== DEBUG {action} ===")
+    print(f"Sequence ID: {seqId}")
+    print(f"Packet ID: {pktId}")
+    print(f"Window size: {cwnd}")
+    print(f"ssthresh: {ssthresh}")
+    print("==================\n")
+
 
 # read file to send
 with open("file.mp3", "rb") as f:
@@ -20,7 +32,7 @@ print(f"Total packets to send: {len(packets)}")
 
 # make udp socket
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
-    SERVER_ADDRESS = ("127.0.0.1", 5001)  # receiver address
+    SERVER_ADDRESS = ("127.0.0.1", 5001)
 
     # start calculator as socket created
     startTime = time.time()
@@ -29,97 +41,122 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     delayList = []
     lastDelay = None
 
-    # TCP Tahoe variables
+    # TCP Reno variables
     cwnd = INITIAL_CWND
     ssthresh = INITIAL_SSTHRESH
     dupAcks = 0
     lastAckId = -1
+    inFastRecovery = False
+    retries = 0
 
     # Window management
-    baseIndex = 0  # first unacked packet
-    nextIndex = 0  # next packet to send
-    sentTime = {}  # track send times for each packet
+    baseIndex = 0
+    nextIndex = 0
+    sentTime = {}
 
     while baseIndex < len(packets):
-        # Send packets within current window ======================================================
+        # Send packets within current window
         while nextIndex < baseIndex + cwnd and nextIndex < len(packets):
-            sizeSeqId = nextIndex * MESSAGE_SIZE
+            seqNum = nextIndex
 
             # send package
             udpPacket = (
-                int.to_bytes(sizeSeqId, SEQ_ID_SIZE, byteorder="big", signed=True)
+                int.to_bytes(seqNum, SEQ_ID_SIZE, byteorder="big", signed=True)
                 + packets[nextIndex]
             )
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
+            sentTime[seqNum] = time.time()
 
-            # record send time
-            sentTime[sizeSeqId] = time.time()
-
+            print_debug_info("SENDING", seqNum, seqNum, cwnd, ssthresh)
             print(
-                f"Sent packet [{sizeSeqId}] ({len(packets[nextIndex])} bytes), Window: {cwnd} >>>"
+                f"Sent packet [{seqNum}] ({len(packets[nextIndex])} bytes), Window: {min(cwnd, MAX_WINDOW_SIZE)} >>>"
             )
             nextIndex += 1
 
-        # Wait for response ======================================================
         try:
             udpSocket.settimeout(TIMEOUT)
-
-            # getting ACK package
             ack, _ = udpSocket.recvfrom(PACKET_SIZE)
-            sizeAckId = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder="big", signed=True)
-            ackPktId = sizeAckId // MESSAGE_SIZE
+            ackNum = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder="big", signed=True)
 
-            print(f"Received ACK [{sizeAckId}], Packet {ackPktId} confirmed ###")
+            print_debug_info("RECEIVED ACK", ackNum, ackNum, cwnd, ssthresh)
+            print(f"Received ACK for packet {ackNum} ###")
 
-            # Calculate delay and jitter if we have the send time
-            if sizeAckId in sentTime:
+            # Handle delay and jitter calculations
+            if ackNum in sentTime:
                 recvTime = time.time()
-                delay = recvTime - sentTime[sizeAckId]
+                delay = recvTime - sentTime[ackNum]
                 delayList.append(delay)
 
                 if lastDelay is not None:
                     jitterIncrement = abs(delay - lastDelay)
                     totalJitter += jitterIncrement
-
                 lastDelay = delay
-                sentTime.pop(sizeAckId)
+                sentTime.pop(ackNum)
 
-            # Handle duplicate ACKs
-            if sizeAckId == lastAckId:
-                dupAcks += 1
-                if dupAcks == 3:  # Fast Retransmit
-                    print(f"Fast Retransmit triggered, Window: {cwnd} -> 1")
-                    ssthresh = max(cwnd // 2, 2)
-                    cwnd = 1
+            # Handle new vs duplicate ACKs
+            if ackNum >= lastAckId:
+                if ackNum > lastAckId:  # New ACK
+                    oldBase = baseIndex
+                    baseIndex = ackNum + 1
+                    nextIndex = max(baseIndex, nextIndex)  # Ensure nextIndex is ahead
+
+                    if inFastRecovery:
+                        cwnd = ssthresh  # Exit Fast Recovery
+                        inFastRecovery = False
+                        print("Exiting Fast Recovery")
+                    else:
+                        if cwnd < ssthresh:  # Slow Start
+                            cwnd = min(cwnd * 2, MAX_WINDOW_SIZE)
+                            print(f"Slow Start: Window increased to {cwnd}")
+                        else:  # Congestion Avoidance
+                            cwnd = min(cwnd + 1, MAX_WINDOW_SIZE)
+                            print(f"Congestion Avoidance: Window increased to {cwnd}")
+
                     dupAcks = 0
-                    nextIndex = baseIndex  # retransmit from last acked packet
-            else:
-                dupAcks = 0
-                lastAckId = sizeAckId
+                    retries = 0  # Reset retries on progress
+                    print(f"Made progress: {oldBase} -> {baseIndex}")
+                else:  # Duplicate ACK
+                    dupAcks += 1
+                    print(f"Duplicate ACK received. Count: {dupAcks}")
 
-                # Move window forward
-                while (
-                    baseIndex < len(packets) and baseIndex * MESSAGE_SIZE <= sizeAckId
-                ):
-                    baseIndex += 1
+                    if dupAcks == 3:  # Triple duplicate ACK
+                        if not inFastRecovery:
+                            print(f"Fast Recovery triggered")
+                            ssthresh = max(cwnd // 2, 2)
+                            cwnd = ssthresh + 3
+                            inFastRecovery = True
+                            nextIndex = baseIndex  # Retransmit lost packet
+                            totalRetransmission += 1
+                    elif inFastRecovery:
+                        cwnd = min(cwnd + 1, MAX_WINDOW_SIZE)  # Inflate window
+                        print(f"Fast Recovery: Window inflated to {cwnd}")
 
-                # Update congestion window
-                if cwnd < ssthresh:  # Slow Start
-                    cwnd *= 2
-                    print(f"Slow Start: Window increased to {cwnd}")
-                else:  # Congestion Avoidance
-                    cwnd += 1
-                    print(f"Congestion Avoidance: Window increased to {cwnd}")
+                lastAckId = ackNum
 
             print(f"Base index [{baseIndex}], Next index [{nextIndex}] []->[]")
 
+            # Add progress check
+            if baseIndex >= len(packets):
+                break
+
         except socket.timeout:
-            # Timeout: set ssthresh and reset cwnd
-            print(f"Timeout! Window: {cwnd} -> 1")
+            retries += 1
+            print(
+                f"TIMEOUT at baseIndex: {baseIndex}, nextIndex: {nextIndex}, Retry: {retries}"
+            )
+            if retries >= MAX_RETRIES:
+                print(
+                    f"Max retries reached for packet {baseIndex}, moving to next packet"
+                )
+                baseIndex += 1
+                nextIndex = max(baseIndex, nextIndex)  # Ensure nextIndex is ahead
+                retries = 0
+
+            inFastRecovery = False  # Exit Fast Recovery on timeout
             ssthresh = max(cwnd // 2, 2)
             cwnd = 1
+            dupAcks = 0
             totalRetransmission += 1
-            nextIndex = baseIndex  # retransmit from last acked packet
 
     # send end signal
     finPacket = (
@@ -128,20 +165,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     udpSocket.sendto(finPacket, SERVER_ADDRESS)
     print(f"Sent FINACK signal XXX")
 
-# Staticstic Output ===================================================
-# time ---------------------------------------
+# Calculate and print metrics
 endTime = time.time()
 useTime = endTime - startTime
-
-# throughput ------------------------------------
 totalData = len(packets) * MESSAGE_SIZE
 throughput = totalData / useTime
-
-# delay and jitter -----------------------------
 avgDelay = sum(delayList) / len(delayList) if delayList else 0
 avgJitter = totalJitter / (len(delayList) - 1) if len(delayList) > 1 else 0
 
-# metric ---------------------------------------
 metric = (
     0.2 * (throughput / 2000)
     + 0.1 * (1 / avgJitter if avgJitter > 0 else 0)
@@ -152,7 +183,6 @@ print("\n=========== METRIC ==================")
 print(f"Packets sent: {len(packets)}")
 print(f"Packet retransmissions: {totalRetransmission}")
 print(f"Time: {useTime:.7f} seconds\n")
-
 print(f"Throughput: {throughput:.7f} bytes/second")
 print(f"Average delay: {avgDelay:.7f} seconds")
 print(f"Average jitter: {avgJitter:.7f} seconds")
