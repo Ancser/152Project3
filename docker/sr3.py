@@ -54,12 +54,13 @@ def sender():
             if baseIndex >= len(packets):
                 break
 
-        # Send packets within the window
+        # Send all packets within the window
+        packets_sent = 0
         while newIndex < baseIndex + WINDOW_SIZE and newIndex < len(packets):
             SeqID = newIndex
             sizeSeqID = SeqID * MESSAGE_SIZE
 
-            # Prepare and send packet
+            # Send packet
             udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
             udpSocket.sendto(udpPacket, SERVER_ADDRESS)
 
@@ -69,44 +70,31 @@ def sender():
 
             print(f"Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
             newIndex += 1
-            time.sleep(1 / sendingRate)  # Control sending rate
+            packets_sent += 1
 
-        # Resend timed-out packets
-        now = time.time()
-        retransmissions = 0
-        with queueLock:
-            for SeqID in range(baseIndex, newIndex):
-                sizeSeqID = SeqID * MESSAGE_SIZE
-                if sizeSeqID in sentTime and (now - sentTime[sizeSeqID]) > TIMEOUT:
-                    udpPacket = int.to_bytes(sizeSeqID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
-                    udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                    sentTime[sizeSeqID] = now
-                    retransmissions += 1
-                    print(f"RE-Sent package [{sizeSeqID}] ({len(packets[SeqID])} bytes) >>>")
-
-        # Adjust window size and sending rate
-        if phase == "Startup":
-            sendingRate *= 1.25  # Ramp up sending rate
-            if currentBandwidth > sendingRate:
-                phase = "Drain"
-        elif phase == "Drain":
-            sendingRate *= 0.8  # Slow down
-            if sendingRate <= currentBandwidth:
+        # Adjust sending rate and window after sending batch
+        if packets_sent > 0:
+            if phase == "Startup":
+                sendingRate *= 1.25  # Ramp up rate
+                if currentBandwidth > sendingRate:
+                    phase = "Drain"
+            elif phase == "Drain":
+                sendingRate *= 0.8  # Slow down
+                if sendingRate <= currentBandwidth:
+                    phase = "ProbeBW"
+            elif phase == "ProbeBW":
+                sendingRate = currentBandwidth  # Maintain bandwidth
+            elif phase == "ProbeRTT":
+                sendingRate = 1  # Minimize rate temporarily
+                time.sleep(0.1)
                 phase = "ProbeBW"
-        elif phase == "ProbeBW":
-            sendingRate = currentBandwidth  # Maintain rate
-        elif phase == "ProbeRTT":
-            sendingRate = 1  # Minimize rate temporarily
-            time.sleep(0.1)
-            phase = "ProbeBW"
 
-        # Adjust window size
-        if retransmissions > 0:
-            WINDOW_SIZE = max(MIN_WINDOW_SIZE, int(WINDOW_SIZE * 0.8))
-        else:
-            WINDOW_SIZE = min(MAX_WINDOW_SIZE, int(WINDOW_SIZE * 1.1))
+            # Adjust window size
+            WINDOW_SIZE = min(MAX_WINDOW_SIZE, max(MIN_WINDOW_SIZE, int(WINDOW_SIZE * 1.1)))
 
-        time.sleep(0.01)  # Avoid CPU overload
+        # Pause briefly after a batch
+        time.sleep(0.01)
+
 
 # Receiver thread
 def receiver():
