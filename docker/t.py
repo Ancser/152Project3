@@ -141,18 +141,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
 
         except socket.timeout:
             retries += 1
-            print(
-                f"TIMEOUT at baseIndex: {baseIndex}, nextIndex: {nextIndex}, Retry: {retries}"
-            )
+            print(f"TIMEOUT at baseIndex: {baseIndex}, Retry: {retries}")
             if retries >= MAX_RETRIES:
-                print(f"Max retries reached for packet {baseIndex}, moving to next packet")
-                # Skip packet after max retries
+                print(f"Max retries reached for packet {baseIndex}, skipping to next packet")
                 baseIndex += 1
                 nextIndex = max(baseIndex, nextIndex)
                 retries = 0
             else:
                 # Retransmit the current baseIndex packet
-                seqNum = baseIndex
+                seqNum = baseIndex  # Use baseIndex for retransmission
                 udpPacket = (
                     int.to_bytes(seqNum, SEQ_ID_SIZE, byteorder="big", signed=True)
                     + packets[seqNum]
@@ -162,10 +159,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 totalRetransmission += 1
                 print(f"Retransmitting packet [{seqNum}] due to TIMEOUT")
             
-            # Adjust window and recovery state
+            # Adjust congestion control on timeout
             inFastRecovery = False  # Exit Fast Recovery on timeout
             ssthresh = max(cwnd // 2, 2)
-            cwnd = 1
+            cwnd = 1  # Reset congestion window to 1
             dupAcks = 0
 
 
