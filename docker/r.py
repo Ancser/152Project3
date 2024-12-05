@@ -28,6 +28,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
     baseIndex = 0
     newIndex = 0
     sentTime = {}
+    dupAcks = 0
+    lastAck = -1
+    inFastRecovery = False
 
     while baseIndex < len(packets):
         while newIndex < baseIndex + cwnd and newIndex < len(packets):
@@ -46,15 +49,29 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
             sizeAckID = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big', signed=True)
             SeqID = sizeAckID // MESSAGE_SIZE
 
-            baseIndex = SeqID + 1
-            if cwnd < ssthresh:  # Slow start
-                cwnd *= 2
-            else:  # Congestion avoidance
-                cwnd += 1
+            if SeqID > lastAck:  # New ACK
+                baseIndex = SeqID + 1
+                dupAcks = 0
+                if inFastRecovery:  # Exit fast recovery
+                    cwnd = ssthresh
+                    inFastRecovery = False
+                if cwnd < ssthresh:  # Slow start
+                    cwnd *= 2
+                else:  # Congestion avoidance
+                    cwnd += 1
+            elif SeqID == lastAck:  # Duplicate ACK
+                dupAcks += 1
+                if dupAcks == 3:  # Triple duplicate ACK
+                    ssthresh = max(cwnd // 2, 1)
+                    cwnd = ssthresh + 3  # Reno: Enter fast recovery
+                    inFastRecovery = True
+                    newIndex = baseIndex  # Retransmit lost packet
+            lastAck = SeqID
         else:
             # Timeout
             ssthresh = max(cwnd // 2, 1)
-            cwnd = 1  # Tahoe: Reset to 1
+            cwnd = 1  # Reset to 1
+            inFastRecovery = False
             totalRetransmission += 1
             for SeqID in range(baseIndex, newIndex):
                 sizeSeqID = SeqID * MESSAGE_SIZE
