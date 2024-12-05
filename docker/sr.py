@@ -11,7 +11,7 @@ MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 # 25 = 60s
 # 30 = 67s
 # over 25 will have too much retransmission lag
-WINDOW_SIZE = 23
+WINDOW_SIZE = 25
 TIMEOUT = 1
 
 # selective resend
