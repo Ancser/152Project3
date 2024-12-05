@@ -11,6 +11,8 @@ INITIAL_CWND = 1
 INITIAL_SSTHRESH = 64
 TIMEOUT = 1
 
+MAX_WINDOW_SIZE = 100
+
 # Read file to send
 with open("file.mp3", "rb") as f:
     data = f.read()
@@ -83,40 +85,42 @@ def receiver():
 
             print(f"Received ACK [{sizeAckId}], Packet {ackPktId} confirmed ###")
 
-            # Calculate delay and jitter if we have the send time
-            if sizeAckId in sentTime:
-                recvTime = time.time()
-                delay = recvTime - sentTime[sizeAckId]
-                delayList.append(delay)
-
-                if lastDelay is not None:
-                    jitterIncrement = abs(delay - lastDelay)
-                    totalJitter += jitterIncrement
-
-                lastDelay = delay
-                sentTime.pop(sizeAckId)
-
             with lock:
+                # Handle ACK and update congestion control
+                if sizeAckId in sentTime:
+                    recvTime = time.time()
+                    delay = recvTime - sentTime[sizeAckId]
+                    delayList.append(delay)
+
+                    if lastDelay is not None:
+                        jitterIncrement = abs(delay - lastDelay)
+                        totalJitter += jitterIncrement
+                    lastDelay = delay
+
+                    sentTime.pop(sizeAckId)
+
                 # Handle duplicate ACKs
                 if sizeAckId == lastAckId:
                     dupAcks += 1
-                    if dupAcks == 3:  # Fast Retransmit
+                    if dupAcks == 3:  # Trigger Fast Retransmit only on 3 consecutive duplicate ACKs
                         print(f"Fast Retransmit triggered, Window: {cwnd} -> 1")
                         ssthresh = max(cwnd // 2, 2)
                         cwnd = 1
                         dupAcks = 0
-                        nextIndex = baseIndex  # Retransmit from last acked packet
+                        nextIndex = baseIndex  # Retransmit from the last acked packet
                 else:
+                    # Valid ACK: Reset duplicate count and advance the base index
                     dupAcks = 0
                     lastAckId = sizeAckId
 
-                    # Move window forward
-                    while baseIndex < len(packets) and baseIndex * MESSAGE_SIZE <= sizeAckId:
+                    while (
+                        baseIndex < len(packets) and baseIndex * MESSAGE_SIZE <= sizeAckId
+                    ):
                         baseIndex += 1
 
                     # Update congestion window
                     if cwnd < ssthresh:  # Slow Start
-                        cwnd *= 2
+                        cwnd = min(cwnd * 2, MAX_WINDOW_SIZE)  # Cap window size
                         print(f"Slow Start: Window increased to {cwnd}")
                     else:  # Congestion Avoidance
                         cwnd += 1
@@ -127,15 +131,15 @@ def receiver():
         except BlockingIOError:
             pass
         except socket.timeout:
-            # Timeout: set ssthresh and reset cwnd
             with lock:
                 print(f"Timeout! Window: {cwnd} -> 1")
                 ssthresh = max(cwnd // 2, 2)
                 cwnd = 1
-                totalRetransmission += 1
-                nextIndex = baseIndex  # Retransmit from last acked packet
+                retransmissions += 1
+                nextIndex = baseIndex  # Retransmit from the last acked packet
 
         time.sleep(0.01)  # Prevent high CPU usage
+
 
 
 # Start threads
