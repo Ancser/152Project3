@@ -7,7 +7,7 @@ SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
 # Initial adaptive window parameters
-WINDOW_SIZE = 10  # Start with a small window size
+WINDOW_SIZE = 5  # Start with a small window size
 TIMEOUT = 2
 MAX_WINDOW_SIZE = 50  # Define a maximum limit for the window size
 
