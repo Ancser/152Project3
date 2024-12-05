@@ -124,9 +124,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udpSocket:
                 baseIndex = SeqID + 1  # update window
                 currentWindowSize = min(MAX_WINDOW_SIZE, int(currentWindowSize * WINDOW_GROWTH_FACTOR))
             else:
-                udpPacket = int.to_bytes(sizeSeqID-(MESSAGE_SIZE), SEQ_ID_SIZE, byteorder='big', signed=True) + packets[SeqID]
+                outdatedSeqID = sizeAckID // MESSAGE_SIZE
+                udpPacket = int.to_bytes(sizeAckID, SEQ_ID_SIZE, byteorder='big', signed=True) + packets[outdatedSeqID]
                 udpSocket.sendto(udpPacket, SERVER_ADDRESS)
-                print(f"Received outdated ACK ID [{sizeAckID}] <<<")
+
+                print(f"Received outdated ACK ID [{sizeAckID}] <<< Resending packet [{sizeAckID}]")
 
 
 
