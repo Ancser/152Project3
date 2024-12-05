@@ -8,7 +8,7 @@ PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 WINDOW_SIZE = 40
-TIMEOUT = 1
+TIMEOUT = 2
 
 # Read file to send
 with open('file.mp3', 'rb') as f:
